@@ -4,7 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   GitBranch, Plus, Sparkles, FileText, Shield, Zap, Clock,
-  ChevronRight, Loader2, Trash2, CheckCircle, Award, Eye
+  ChevronRight, Loader2, Trash2, CheckCircle, Award, Eye,
+  ArrowUp, ArrowDown, CheckSquare
 } from 'lucide-react';
 
 const API = '/api/workflow';
@@ -21,6 +22,8 @@ const WorkflowRecorder = () => {
   const [submitting, setSubmitting] = useState(false);
   const [viewingSOP, setViewingSOP] = useState(null);
   const role = localStorage.getItem('role');
+  const [page, setPage] = useState(1);
+  const [editId, setEditId] = useState(null);
 
   const [form, setForm] = useState({
     title: '', description: '', category: '', department: '', area: '',
@@ -29,11 +32,16 @@ const WorkflowRecorder = () => {
 
   useEffect(() => { fetchWorkflows(); }, []);
 
-  const fetchWorkflows = async () => {
+  const fetchWorkflows = async (pageNum = 1) => {
     setLoading(true);
     try {
-      const r = await axios.get(API, { headers: headers() });
-      setWorkflows(r.data);
+      const r = await axios.get(`${API}?page=${pageNum}`, { headers: headers() });
+      if (pageNum === 1) {
+          setWorkflows(r.data);
+      } else {
+          setWorkflows(prev => [...prev, ...r.data]);
+      }
+      setPage(pageNum);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -53,6 +61,28 @@ const WorkflowRecorder = () => {
     }));
   };
 
+  const moveStepUp = (idx) => {
+    if (idx === 0) return;
+    setForm(prev => {
+      const newSteps = [...prev.steps];
+      const temp = newSteps[idx - 1];
+      newSteps[idx - 1] = newSteps[idx];
+      newSteps[idx] = temp;
+      return { ...prev, steps: newSteps.map((s, i) => ({ ...s, step: i + 1 })) };
+    });
+  };
+
+  const moveStepDown = (idx) => {
+    if (idx === form.steps.length - 1) return;
+    setForm(prev => {
+      const newSteps = [...prev.steps];
+      const temp = newSteps[idx + 1];
+      newSteps[idx + 1] = newSteps[idx];
+      newSteps[idx] = temp;
+      return { ...prev, steps: newSteps.map((s, i) => ({ ...s, step: i + 1 })) };
+    });
+  };
+
   const updateStep = (idx, field, value) => {
     setForm(prev => ({
       ...prev,
@@ -69,17 +99,46 @@ const WorkflowRecorder = () => {
         ...form,
         steps: form.steps.filter(s => s.action.trim()),
       };
-      await axios.post(API, payload, { headers: headers() });
+      if (editId) {
+          await axios.put(`${API}/${editId}`, payload, { headers: headers() });
+      } else {
+          await axios.post(API, payload, { headers: headers() });
+      }
       setForm({
         title: '', description: '', category: '', department: '', area: '',
         steps: [{ step: 1, action: '', notes: '', duration: '' }],
       });
       setShowForm(false);
-      fetchWorkflows();
+      setEditId(null);
+      fetchWorkflows(1);
     } catch (e) {
       alert('Error: ' + (e.response?.data?.detail || e.message));
     }
     setSubmitting(false);
+  };
+
+  const handleEdit = (wf) => {
+      setForm({
+          title: wf.title,
+          description: wf.description || '',
+          category: wf.category || '',
+          department: wf.department || '',
+          area: wf.area || '',
+          steps: wf.steps && wf.steps.length > 0 ? wf.steps : [{ step: 1, action: '', notes: '', duration: '' }]
+      });
+      setEditId(wf.id);
+      setShowForm(true);
+      window.scrollTo(0, 0);
+  };
+
+  const handleDelete = async (id) => {
+      if (!confirm('Hapus workflow ini?')) return;
+      try {
+          await axios.delete(`${API}/${id}`, { headers: headers() });
+          fetchWorkflows(1);
+      } catch (e) {
+          alert('Error: ' + (e.response?.data?.detail || e.message));
+      }
   };
 
   const handleApprove = async (id) => {
@@ -96,6 +155,16 @@ const WorkflowRecorder = () => {
       const r = await axios.get(`${API}/${id}`, { headers: headers() });
       setViewingSOP(r.data);
     } catch (e) { console.error(e); }
+  };
+
+  const handleMarkUsed = async (id) => {
+    try {
+      await axios.post(`${API}/${id}/mark-used`, {}, { headers: headers() });
+      setViewingSOP(prev => ({ ...prev, used_count: prev.used_count + 1 }));
+      fetchWorkflows(1);
+    } catch (e) {
+      alert('Error: ' + (e.response?.data?.detail || e.message));
+    }
   };
 
   return (
@@ -139,7 +208,18 @@ const WorkflowRecorder = () => {
                   {viewingSOP.ai_estimated_time && <span className="badge badge--cyan" style={{ fontSize: '0.6rem' }}><Clock size={10} /> {viewingSOP.ai_estimated_time}</span>}
                 </div>
               </div>
-              <button onClick={() => setViewingSOP(null)} className="btn-ghost" style={{ fontSize: '0.8rem' }}>Close</button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button onClick={() => handleMarkUsed(viewingSOP.id)} className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--neon-green)', color: '#000' }}>
+                      <CheckSquare size={14} /> Mark as Used
+                  </button>
+                  <button onClick={() => {
+                      const token = localStorage.getItem('token');
+                      window.open(`/api/export/workflow/${viewingSOP.id}/docx?token=${token}`, '_blank');
+                  }} className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FileText size={14} /> Export DOCX
+                  </button>
+                  <button onClick={() => setViewingSOP(null)} className="btn-ghost" style={{ fontSize: '0.8rem' }}>Close</button>
+              </div>
             </div>
 
             {/* Tabs inside modal */}
@@ -234,6 +314,16 @@ const WorkflowRecorder = () => {
                         placeholder="Durasi" className="form-input" style={{ width: '120px' }} />
                     </div>
                   </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                    <button type="button" onClick={() => moveStepUp(idx)} disabled={idx === 0}
+                      style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer', padding: '4px', color: idx === 0 ? 'transparent' : 'var(--text-muted)' }}>
+                      <ArrowUp size={14} />
+                    </button>
+                    <button type="button" onClick={() => moveStepDown(idx)} disabled={idx === form.steps.length - 1}
+                      style={{ background: 'none', border: 'none', cursor: idx === form.steps.length - 1 ? 'not-allowed' : 'pointer', padding: '4px', color: idx === form.steps.length - 1 ? 'transparent' : 'var(--text-muted)' }}>
+                      <ArrowDown size={14} />
+                    </button>
+                  </div>
                   {form.steps.length > 1 && (
                     <button type="button" onClick={() => removeStep(idx)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -248,7 +338,14 @@ const WorkflowRecorder = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
+              <button type="button" onClick={() => {
+                  setShowForm(false);
+                  setEditId(null);
+                  setForm({
+                      title: '', description: '', category: '', department: '', area: '',
+                      steps: [{ step: 1, action: '', notes: '', duration: '' }],
+                  });
+              }} className="btn-ghost">Cancel</button>
               <button type="submit" disabled={submitting} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {submitting ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                 {submitting ? 'Generating SOP...' : 'Save & Generate SOP'}
@@ -323,7 +420,9 @@ const WorkflowRecorder = () => {
                       <Award size={12} /> Approve
                     </button>
                   )}
-                  <span style={{ fontSize: '0.7rem', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button onClick={(e) => { e.stopPropagation(); handleEdit(wf); }} className="btn-ghost" style={{ padding: '4px 10px', fontSize: '0.7rem' }}>Edit</button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(wf.id); }} style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Delete</button>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
                     View SOP <ChevronRight size={12} />
                   </span>
                 </div>
@@ -331,6 +430,14 @@ const WorkflowRecorder = () => {
             </div>
           ))}
         </div>
+      )}
+      
+      {!loading && workflows.length >= page * 20 && (
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <button onClick={() => fetchWorkflows(page + 1)} className="btn-ghost">
+                  Load More
+              </button>
+          </div>
       )}
     </div>
   );

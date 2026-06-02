@@ -28,6 +28,9 @@ LDAP_LAST_ATTR     = os.getenv("LDAP_LASTNAME_ATTRIBUTE", "sn")
 _raw_admins = os.getenv("LDAP_ADMIN_USERS", "")
 LDAP_ADMIN_USERS: set = {u.strip().lower() for u in _raw_admins.split(",") if u.strip()}
 
+# AD group-based admin role: if user is memberOf this group DN, they get admin role
+LDAP_ADMIN_GROUP = os.getenv("LDAP_ADMIN_GROUP", "").strip()
+
 # Domain name extracted from LDAP_BASE_DN (e.g. DC=gyssteel,DC=com → gyssteel.com)
 def _dn_to_domain(base_dn: str) -> str:
     parts = [p.split("=")[1] for p in base_dn.split(",") if p.lower().startswith("dc=")]
@@ -71,15 +74,25 @@ def _safe_attr(entry, attr_name: str, default: str = "") -> str:
 
 
 class LDAPUserInfo:
-    def __init__(self, username: str, email: str, display_name: str, dn: str):
+    def __init__(self, username: str, email: str, display_name: str, dn: str, member_of: list = None):
         self.username     = username
         self.email        = email
         self.display_name = display_name
         self.dn           = dn
+        self.member_of    = member_of or []
 
     @property
     def is_admin(self) -> bool:
-        return self.username.lower() in LDAP_ADMIN_USERS
+        # Check whitelist first
+        if self.username.lower() in LDAP_ADMIN_USERS:
+            return True
+        # Check AD group membership
+        if LDAP_ADMIN_GROUP:
+            return any(
+                LDAP_ADMIN_GROUP.lower() in grp.lower()
+                for grp in self.member_of
+            )
+        return False
 
 
 def _try_bind(server, user_identity: str, password: str) -> Optional[Connection]:
@@ -173,7 +186,7 @@ def authenticate(username: str, password: str) -> Optional[LDAPUserInfo]:
             search_filter=search_filter,
             search_scope=SUBTREE,
             attributes=[LDAP_USERNAME_ATTR, LDAP_MAIL_ATTR, LDAP_DISPLAY_ATTR,
-                        LDAP_FIRST_ATTR, LDAP_LAST_ATTR, "distinguishedName", "userPrincipalName"],
+                        LDAP_FIRST_ATTR, LDAP_LAST_ATTR, "distinguishedName", "userPrincipalName", "memberOf"],
         )
 
         if successful_conn.entries:
@@ -182,6 +195,12 @@ def authenticate(username: str, password: str) -> Optional[LDAPUserInfo]:
             sam_val = _safe_attr(entry, LDAP_USERNAME_ATTR, sam)
             email   = _safe_attr(entry, LDAP_MAIL_ATTR, "")
             display = _safe_attr(entry, LDAP_DISPLAY_ATTR, "")
+            # Fetch group memberships
+            try:
+                member_of_raw = entry["memberOf"].values if hasattr(entry["memberOf"], "values") else []
+                member_of = [str(g) for g in member_of_raw]
+            except Exception:
+                member_of = []
             if not display:
                 first = _safe_attr(entry, LDAP_FIRST_ATTR, "")
                 last  = _safe_attr(entry, LDAP_LAST_ATTR, "")
@@ -195,12 +214,13 @@ def authenticate(username: str, password: str) -> Optional[LDAPUserInfo]:
             sam_val = sam
             email   = f"{sam}@{LDAP_DOMAIN}"
             display = sam
+            member_of = []
 
         successful_conn.unbind()
 
-        logger.info(f"LDAP: '{sam}' authenticated OK (admin={sam.lower() in LDAP_ADMIN_USERS})")
+        logger.info(f"LDAP: '{sam}' authenticated OK (admin={sam.lower() in LDAP_ADMIN_USERS}, groups={len(member_of)})")
         return LDAPUserInfo(
-            username=sam_val, email=email, display_name=display, dn=user_dn
+            username=sam_val, email=email, display_name=display, dn=user_dn, member_of=member_of
         )
 
     except LDAPSocketOpenError as e:

@@ -43,32 +43,43 @@ async def fetch_market_data():
 
 async def fetch_steel_news():
     """
-    Scrapes steel manufacturing news.
+    Scrapes steel manufacturing news with retry logic.
     """
     logger.info("Starting steel news scraper...")
-    try:
-        rss_url = "https://news.google.com/rss/search?q=HRC+steel+prices+OR+steel+manufacturing+industry+when:1d&hl=en-US&gl=US&ceid=US:en"
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(rss_url)
-            response.raise_for_status()
+    max_retries = 3
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            rss_url = "https://news.google.com/rss/search?q=HRC+steel+prices+OR+steel+manufacturing+industry+when:1d&hl=en-US&gl=US&ceid=US:en"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
             
-        root = ET.fromstring(response.text)
-        news_items = []
-        for item in root.findall('./channel/item')[:5]:  # Top 5 news
-            title = item.find('title').text
-            link = item.find('link').text
-            pub_date = item.find('pubDate').text
-            news_items.append({
-                "title": title,
-                "link": link,
-                "date": pub_date
-            })
-            
-        return news_items
-    except Exception as e:
-        logger.error(f"Error fetching steel news: {e}")
-        return []
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(rss_url, headers=headers)
+                response.raise_for_status()
+                
+            root = ET.fromstring(response.text)
+            news_items = []
+            for item in root.findall('./channel/item')[:5]:  # Top 5 news
+                title = item.find('title').text
+                link = item.find('link').text
+                pub_date = item.find('pubDate').text
+                news_items.append({
+                    "title": title,
+                    "link": link,
+                    "date": pub_date
+                })
+                
+            return news_items
+        except Exception as e:
+            logger.warning(f"Steel news fetch attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
+                import asyncio
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff: 2s, 4s
+            else:
+                logger.error(f"All {max_retries} attempts to fetch steel news failed")
+                return []
 
 
 def run_daily_scraper_sync():

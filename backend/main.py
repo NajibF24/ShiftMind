@@ -10,9 +10,11 @@ import models.work_journal
 import models.workflow
 import models.checklist
 import models.approval
+import models.notification
+import models.settings
 
 # Import routes
-from routes import auth, knowledge, ask, dashboard, sync, analytics, work_journal, workflow, expert_finder, checklist, approval
+from routes import auth, knowledge, ask, dashboard, sync, analytics, work_journal, workflow, expert_finder, checklist, approval, notification, export, whatsapp
 
 # Create database tables (in production use alembic for migrations)
 import sqlalchemy as sa
@@ -51,10 +53,18 @@ app.include_router(workflow.router, prefix="/api/workflow", tags=["workflow"])
 app.include_router(expert_finder.router, prefix="/api/experts", tags=["expert-finder"])
 app.include_router(checklist.router, prefix="/api/checklists", tags=["checklists"])
 app.include_router(approval.router, prefix="/api/approvals", tags=["approvals"])
+app.include_router(notification.router, prefix="/api/notifications", tags=["notifications"])
+app.include_router(export.router, prefix="/api/export", tags=["export"])
+app.include_router(whatsapp.router, prefix="/api/whatsapp", tags=["whatsapp"])
 
 @app.get("/api/health")
-def health_check():
-    return {"status": "ok", "version": "2.0"}
+def health_check(db: Session = Depends(get_db)):
+    try:
+        # Check DB connectivity
+        db.execute(sa.text("SELECT 1"))
+        return {"status": "ok", "version": "1.0", "db": "operational"}
+    except Exception as e:
+        return {"status": "degraded", "version": "1.0", "db": "offline", "error": str(e)}
 
 # ─── APScheduler: Auto-sync Data every day at 7 AM ───────────────────────────
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -96,10 +106,24 @@ sync_hour = int(os.environ.get("AUTO_SYNC_HOUR", "7"))
 scheduler.add_job(scheduled_sync_jobs, 'cron', hour=sync_hour, minute=0, id='daily_sync_jobs')
 
 @app.on_event("startup")
-def startup_event():
-    """Start the scheduler on app startup."""
+async def startup_event():
+    """Start the scheduler and connect WhatsApp on app startup."""
     scheduler.start()
     logger.info(f"APScheduler started — Daily sync scheduled at {sync_hour:02d}:00")
+    # Attempt WhatsApp connection (non-blocking)
+    try:
+        from services.whatsapp_service import connect_whatsapp, load_config_from_db
+        from db import SessionLocal
+        
+        db = SessionLocal()
+        try:
+            load_config_from_db(db)
+        finally:
+            db.close()
+            
+        await connect_whatsapp()
+    except Exception as e:
+        logger.warning(f"WhatsApp connection skipped: {e}")
 
 @app.on_event("shutdown")
 def shutdown_event():

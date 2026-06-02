@@ -67,6 +67,15 @@ services:
     command: npm run dev -- --host 0.0.0.0
     restart: unless-stopped
 
+  whatsapp:
+    build:
+      context: ./whatsapp-server
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./whatsapp-server/baileys_auth_info:/app/baileys_auth_info
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     ports:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, JSON
 from sqlalchemy.sql import func
 from db import Base
 
@@ -12,6 +12,8 @@ class ApprovalRequest(Base):
     request_type = Column(String, index=True, nullable=False) # "contract", "purchase", "workflow"
     status = Column(String, default="pending", index=True) # "pending", "approved", "rejected"
     ai_assessment = Column(Text, nullable=True) # AI risk assessment
-    comments = Column(Text, nullable=True)
+    comments = Column(JSON, nullable=True)  # Thread: [{"user_id": 1, "username": "admin", "content": "...", "created_at": "..."}]
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

@@ -16,6 +16,8 @@ const KnowledgeManager = () => {
   const [syncing, setSyncing] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [message, setMessage] = useState(null);
+  const [fileToUpload, setFileToUpload] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => { fetchAll(); }, [sourceFilter]);
 
@@ -63,6 +65,32 @@ const KnowledgeManager = () => {
   const handleDeleteEntry = async (id) => {
     try { await axios.delete(`/api/knowledge/${id}`, { headers: API_HEADERS() }); setEntries(entries.filter(e => e.id !== id)); }
     catch { console.error('Delete failed'); }
+  };
+
+  const handleUploadFile = async (e) => {
+    e.preventDefault();
+    if (!fileToUpload) return;
+    setUploading(true);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append('file', fileToUpload);
+    formData.append('category', 'Document');
+    
+    try {
+      const res = await axios.post('/api/knowledge/upload-file', formData, {
+        headers: {
+          ...API_HEADERS(),
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setMessage({ type: 'success', text: res.data.message });
+      setFileToUpload(null);
+      fetchAll();
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.detail || 'Upload failed' });
+    }
+    setUploading(false);
   };
 
   const breakdown = stats?.source_breakdown || {};
@@ -148,6 +176,23 @@ const KnowledgeManager = () => {
             OneDrive not configured. Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET in .env
           </div>
         )}
+        
+        {/* Upload File Section */}
+        <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+            <h3 style={{ fontSize: '0.85rem', fontWeight: '600', marginBottom: '12px' }}>Upload Dokumen (PDF, DOCX, TXT)</h3>
+            <form onSubmit={handleUploadFile} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input 
+                    type="file" 
+                    onChange={e => setFileToUpload(e.target.files[0])}
+                    accept=".pdf,.docx,.doc,.txt,.xlsx,.xls,.pptx,.ppt"
+                    className="form-input"
+                    style={{ flex: 1, padding: '8px' }}
+                />
+                <button type="submit" disabled={!fileToUpload || uploading} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
+                    {uploading ? <Loader2 size={15} className="animate-spin" /> : 'Upload & Parse'}
+                </button>
+            </form>
+        </div>
       </div>
 
       <div className="glass-panel--strong" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>

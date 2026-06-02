@@ -25,6 +25,8 @@ const WorkJournal = () => {
   const [search, setSearch] = useState('');
   const [filterArea, setFilterArea] = useState('');
   const [tab, setTab] = useState('timeline'); // timeline | my-stats | digest
+  const [page, setPage] = useState(1);
+  const [editId, setEditId] = useState(null);
 
   // Voice input
   const [isRecording, setIsRecording] = useState(false);
@@ -37,14 +39,20 @@ const WorkJournal = () => {
 
   useEffect(() => { fetchJournals(); fetchStats(); fetchSuggestion(); }, []);
 
-  const fetchJournals = async (searchQuery, areaFilter) => {
+  const fetchJournals = async (searchQuery, areaFilter, pageNum = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery || search) params.append('search', searchQuery || search);
       if (areaFilter || filterArea) params.append('area', areaFilter || filterArea);
+      params.append('page', pageNum);
       const r = await axios.get(`${API}?${params}`, { headers: headers() });
-      setJournals(r.data);
+      if (pageNum === 1) {
+          setJournals(r.data);
+      } else {
+          setJournals(prev => [...prev, ...r.data]);
+      }
+      setPage(pageNum);
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -75,15 +83,43 @@ const WorkJournal = () => {
     if (!form.title.trim() || !form.content.trim()) return;
     setSubmitting(true);
     try {
-      await axios.post(API, form, { headers: headers() });
+      if (editId) {
+        await axios.put(`${API}/${editId}`, form, { headers: headers() });
+      } else {
+        await axios.post(API, form, { headers: headers() });
+      }
       setForm({ title: '', content: '', department: '', area: '', is_public: 1 });
       setShowForm(false);
-      fetchJournals();
+      setEditId(null);
+      fetchJournals(search, filterArea, 1);
       fetchStats();
     } catch (e) {
       alert('Error: ' + (e.response?.data?.detail || e.message));
     }
     setSubmitting(false);
+  };
+
+  const handleEdit = (j) => {
+      setForm({
+          title: j.title,
+          content: j.content,
+          department: j.department || '',
+          area: j.area || '',
+          is_public: j.is_public
+      });
+      setEditId(j.id);
+      setShowForm(true);
+      window.scrollTo(0, 0);
+  };
+
+  const handleDelete = async (id) => {
+      if (!confirm('Hapus entri journal ini?')) return;
+      try {
+          await axios.delete(`${API}/${id}`, { headers: headers() });
+          fetchJournals(search, filterArea, 1);
+      } catch (e) {
+          alert('Error: ' + (e.response?.data?.detail || e.message));
+      }
   };
 
   const handleHelpful = async (id) => {
@@ -152,7 +188,11 @@ const WorkJournal = () => {
           Catat pekerjaan harian Anda. AI akan menganalisis, mengkategorikan, dan mengekstrak <strong style={{ color: 'var(--neon-cyan)' }}>tacit knowledge</strong> yang tidak ada di Google.
         </p>
         <div style={{ display: 'flex', gap: '12px', marginTop: '20px', flexWrap: 'wrap' }}>
-          <button onClick={() => setShowForm(!showForm)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => {
+              setForm({ title: '', content: '', department: '', area: '', is_public: 1 });
+              setEditId(null);
+              setShowForm(!showForm);
+          }} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={15} /> Catat Aktivitas
           </button>
           <button onClick={() => { setTab('digest'); fetchDigest(); }} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -247,7 +287,11 @@ const WorkJournal = () => {
                 <Eye size={13} /> Visible to team
               </label>
               <div style={{ flex: 1 }} />
-              <button type="button" onClick={() => setShowForm(false)} className="btn-ghost">Cancel</button>
+              <button type="button" onClick={() => {
+                  setShowForm(false);
+                  setEditId(null);
+                  setForm({ title: '', content: '', department: '', area: '', is_public: 1 });
+              }} className="btn-ghost">Cancel</button>
               <button type="submit" disabled={submitting} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {submitting ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                 {submitting ? 'AI Processing...' : 'Save & Analyze'}
@@ -367,17 +411,30 @@ const WorkJournal = () => {
                         </div>
                       )}
                       {j.ai_related_sops && (
-                        <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)' }}>
+                        <div style={{ padding: '14px', borderRadius: '10px', background: 'rgba(124,58,237,0.03)', border: '1px solid rgba(124,58,237,0.1)', marginBottom: '14px' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--neon-purple)', fontWeight: '600', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <BookOpen size={13} /> Related SOPs
                           </div>
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{j.ai_related_sops}</p>
                         </div>
                       )}
+                      
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(j); }} className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem' }}>Edit</button>
+                          <button onClick={(e) => { e.stopPropagation(); handleDelete(j.id); }} style={{ padding: '6px 12px', fontSize: '0.75rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Delete</button>
+                      </div>
                     </div>
                   )}
                 </div>
               ))}
+              
+              {!loading && journals.length >= page * 20 && (
+                <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                  <button onClick={() => fetchJournals(search, filterArea, page + 1)} className="btn-ghost">
+                    Load More
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </>

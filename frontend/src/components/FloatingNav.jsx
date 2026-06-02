@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/approvals', label: 'Approvals', icon: '08', roles: ['admin', 'user', 'viewer'] },
   { to: '/capture', label: 'Capture Knowledge', icon: '09', roles: ['admin', 'user'] },
   { to: '/knowledge-manager', label: 'Knowledge Manager', icon: '10', roles: ['admin'] },
+  { to: '/settings', label: 'System Settings', icon: '11', roles: ['admin'] },
 ];
 
 const FloatingNav = ({ role, onLogout }) => {

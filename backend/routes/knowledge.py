@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List, Optional
@@ -8,6 +8,10 @@ from models.user import User, RoleEnum
 from models.knowledge import KnowledgeEntry
 from services.auth import get_current_user, require_role
 from services.ai_service import generate_embedding
+from services.document_parser import parse_document, chunk_text
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -16,6 +20,12 @@ class KnowledgeCreate(BaseModel):
     content: str
     department: str = None
     category: str = None
+
+class KnowledgeUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    department: Optional[str] = None
+    category: Optional[str] = None
 
 class KnowledgeResponse(BaseModel):
     id: int
@@ -59,6 +69,8 @@ def create_knowledge(
 def get_knowledge_entries(
     source: Optional[str] = Query(None, description="Filter by source: manual, company, onedrive"),
     category: Optional[str] = Query(None, description="Filter by category"),
+    page: int = 1,
+    per_page: int = 50,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user) # Any authenticated user can read
 ):
@@ -69,8 +81,44 @@ def get_knowledge_entries(
     if category:
         query = query.filter(KnowledgeEntry.category == category)
     
-    entries = query.order_by(KnowledgeEntry.created_at.desc()).limit(100).all()
+    offset = (page - 1) * per_page
+    entries = query.order_by(KnowledgeEntry.created_at.desc()).offset(offset).limit(per_page).all()
     return entries
+
+
+@router.put("/{entry_id}", response_model=KnowledgeResponse)
+def update_knowledge(
+    entry_id: int,
+    data: KnowledgeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin, RoleEnum.user]))
+):
+    """Edit a knowledge entry. Admin or original author can edit."""
+    entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    # Only admin or the author can edit
+    if current_user.role.value != "admin" and entry.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this entry")
+    
+    if data.title is not None:
+        entry.title = data.title
+    if data.content is not None:
+        entry.content = data.content
+    if data.department is not None:
+        entry.department = data.department
+    if data.category is not None:
+        entry.category = data.category
+
+    # Re-generate embedding
+    embedding = generate_embedding((entry.title or "") + " " + (entry.content or ""))
+    entry.embedding = embedding
+    
+    db.commit()
+    db.refresh(entry)
+    return entry
+
 
 @router.delete("/{entry_id}", status_code=204)
 def delete_knowledge(
@@ -99,6 +147,64 @@ def delete_knowledge_by_source(
     count = db.query(KnowledgeEntry).filter(KnowledgeEntry.source == source_type).delete()
     db.commit()
     return {"message": f"Deleted {count} entries with source '{source_type}'"}
+
+
+# ─── File Upload ─────────────────────────────────────────────────────────────
+
+@router.post("/upload-file", status_code=201)
+async def upload_knowledge_file(
+    file: UploadFile = File(...),
+    category: str = Form(None),
+    department: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin, RoleEnum.user]))
+):
+    """Upload a document (PDF, DOCX, XLSX, PPTX, TXT) and parse it into knowledge entries."""
+    content = await file.read()
+    text = parse_document(content, file.filename)
+    if not text or not text.strip():
+        raise HTTPException(status_code=400, detail=f"Gagal membaca dokumen atau dokumen kosong: {file.filename}")
+
+    # Chunk the text
+    chunks = chunk_text(text, chunk_size=500, overlap=50)
+    if not chunks:
+        raise HTTPException(status_code=400, detail="Dokumen tidak menghasilkan teks yang cukup.")
+
+    entries_created = 0
+    for idx, chunk in enumerate(chunks):
+        if len(chunks) == 1:
+            title = f"[Upload] {file.filename}"
+        else:
+            title = f"[Upload] {file.filename} (Bagian {idx + 1}/{len(chunks)})"
+
+        embedding = generate_embedding(title + " " + chunk)
+
+        entry = KnowledgeEntry(
+            title=title,
+            content=chunk,
+            department=department,
+            category=category or "Document",
+            author_id=current_user.id,
+            confidence_score=0.85,
+            source="manual_upload",
+            source_file_name=file.filename,
+            chunk_index=idx,
+            embedding=embedding,
+        )
+        db.add(entry)
+        entries_created += 1
+
+    db.commit()
+    logger.info(f"Uploaded {file.filename}: {entries_created} chunks created")
+
+    return {
+        "message": f"Dokumen '{file.filename}' berhasil diproses",
+        "filename": file.filename,
+        "chunks_created": entries_created,
+    }
+
+
+# ─── Manual Sync ─────────────────────────────────────────────────────────────
 
 @router.post("/sync/manual", status_code=200)
 def manual_sync(

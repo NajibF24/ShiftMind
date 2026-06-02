@@ -13,6 +13,7 @@ import WorkflowRecorder from './pages/WorkflowRecorder';
 import ExpertFinder from './pages/ExpertFinder';
 import Checklists from './pages/Checklists';
 import Approvals from './pages/Approvals';
+import Settings from './pages/Settings';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -60,7 +61,10 @@ function AppContent({ role, handleLogout }) {
           <Route path="/checklists" element={<Checklists />} />
           <Route path="/approvals" element={<Approvals />} />
           {role === 'admin' && (
-            <Route path="/knowledge-manager" element={<KnowledgeManager />} />
+            <>
+              <Route path="/knowledge-manager" element={<KnowledgeManager />} />
+              <Route path="/settings" element={<Settings />} />
+            </>
           )}
           <Route path="/explore" element={<Interactive3DHome />} />
           <Route path="*" element={<Navigate to="/explore" />} />

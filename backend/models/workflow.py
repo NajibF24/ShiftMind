@@ -39,6 +39,8 @@ class Workflow(Base):
     
     # Metadata
     version = Column(Integer, default=1)
+    parent_id = Column(Integer, ForeignKey("workflows.id"), nullable=True) # ID of previous version
+    is_latest = Column(Integer, default=1) # 1 = latest, 0 = old version
     is_approved = Column(Integer, default=0)    # 0 = draft, 1 = reviewed/approved by admin
     used_count = Column(Integer, default=0)      # How many times others referenced this
     

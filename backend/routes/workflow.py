@@ -6,10 +6,10 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 from db import get_db
-from models.user import User
+from models.user import User, RoleEnum
 from models.workflow import Workflow
 from models.knowledge import KnowledgeEntry
-from services.auth import get_current_user
+from services.auth import get_current_user, require_role
 from services.ai_service import generate_embedding, get_chat_completion
 
 router = APIRouter()
@@ -180,6 +180,7 @@ def create_workflow(
             category=data.category or "Workflow",
             department=data.department,
             source="workflow",
+            source_file_id=str(wf.id),
             confidence_score=0.6,
             embedding=embedding,
             author_id=current_user.id,
@@ -197,7 +198,8 @@ def list_workflows(
     category: Optional[str] = None,
     area: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 20,
+    page: int = 1,
+    per_page: int = 20,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -208,17 +210,22 @@ def list_workflows(
         UserModel, Workflow.user_id == UserModel.id
     )
 
+    query = query.filter(Workflow.is_latest == 1)
+
     if category:
         query = query.filter(Workflow.category == category)
     if area:
         query = query.filter(Workflow.area == area)
     if search:
         emb = generate_embedding(search)
+        # Hybrid search: semantic sorting + text filtering
+        query = query.filter(Workflow.title.ilike(f"%{search}%"))
         query = query.order_by(Workflow.embedding.l2_distance(emb))
     else:
         query = query.order_by(desc(Workflow.created_at))
 
-    results = query.limit(limit).all()
+    offset = (page - 1) * per_page
+    results = query.offset(offset).limit(per_page).all()
     return [_to_response(w, dn or un) for w, dn, un in results]
 
 
@@ -239,10 +246,7 @@ def get_workflow(
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     wf, dn, un = result
-    wf.used_count = (wf.used_count or 0) + 1
-    db.commit()
-    db.refresh(wf)
-
+    
     return _to_response(wf, dn or un)
 
 
@@ -250,12 +254,9 @@ def get_workflow(
 def approve_workflow(
     workflow_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([RoleEnum.admin]))
 ):
     """Admin approves a workflow as official SOP."""
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Only admins can approve workflows")
-
     wf = db.query(Workflow).filter(Workflow.id == workflow_id).first()
     if not wf:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -274,6 +275,114 @@ def approve_workflow(
     db.commit()
     return {"message": "Workflow approved as official SOP", "id": wf.id}
 
+
+@router.put("/{workflow_id}", response_model=WorkflowResponse)
+def update_workflow(
+    workflow_id: int,
+    data: WorkflowCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Edit a workflow. Increments version, re-generates AI SOP."""
+    wf = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if wf.user_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to edit this workflow")
+
+    steps_dicts = [s.dict() for s in data.steps]
+
+    # Re-generate embedding
+    text = f"{data.title}\n{data.description or ''}\n" + "\n".join(
+        [f"Step {s.step}: {s.action}" for s in data.steps]
+    )
+    embedding = generate_embedding(text)
+
+    # Re-generate AI SOP
+    ai_result = _ai_generate_sop(data.title, data.description, data.steps)
+
+    # Versioning: Deprecate old workflow, create a new one
+    wf.is_latest = 0
+    db.add(wf)
+
+    new_wf = Workflow(
+        user_id=wf.user_id, # maintain original author
+        title=data.title,
+        description=data.description,
+        steps=steps_dicts,
+        category=data.category,
+        department=data.department,
+        area=data.area,
+        ai_sop_draft=ai_result["ai_sop_draft"],
+        ai_safety_notes=ai_result["ai_safety_notes"],
+        ai_optimization=ai_result["ai_optimization"],
+        ai_estimated_time=ai_result["ai_estimated_time"],
+        tags=ai_result["tags"],
+        embedding=embedding,
+        version=(wf.version or 1) + 1,
+        parent_id=wf.id,
+        is_latest=1,
+        is_approved=0,
+        used_count=wf.used_count
+    )
+    db.add(new_wf)
+    db.flush()
+
+    # Update linked knowledge entry
+    kb = db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.source == "workflow",
+        KnowledgeEntry.source_file_id == str(wf.id)
+    ).first()
+    if kb:
+        kb.title = f"[Workflow] {data.title}"
+        kb.content = ai_result["ai_sop_draft"] or text
+        kb.embedding = embedding
+        kb.source_file_id = str(new_wf.id)
+        kb.confidence_score = 0.6 # reset confidence because it needs approval again
+
+    db.commit()
+    db.refresh(new_wf)
+    return _to_response(new_wf, current_user.display_name or current_user.username)
+
+
+@router.delete("/{workflow_id}", status_code=204)
+def delete_workflow(
+    workflow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a workflow. Owner or admin can delete."""
+    wf = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    if wf.user_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this workflow")
+
+    # Also remove linked knowledge entry
+    db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.source == "workflow",
+        KnowledgeEntry.source_file_id == str(wf.id)
+    ).delete()
+
+    db.delete(wf)
+    db.commit()
+    return None
+
+
+@router.post("/{workflow_id}/mark-used")
+def mark_workflow_used(
+    workflow_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark a workflow as used in the field, incrementing its counter."""
+    wf = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    if not wf:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+        
+    wf.used_count = (wf.used_count or 0) + 1
+    db.commit()
+    return {"message": "Workflow marked as used", "used_count": wf.used_count}
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
 

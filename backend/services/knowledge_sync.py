@@ -80,11 +80,24 @@ def sync_onedrive_documents(db: Session) -> SyncResult:
             ).first()
 
             if existing and existing.last_synced_at:
-                # Compare last modified dates
-                if last_modified and existing.last_synced_at.isoformat() >= last_modified:
-                    result.files_skipped += 1
-                    logger.debug(f"Skipping unchanged file: {file_name}")
-                    continue
+                # 🔴 FIX: Compare as datetime objects, not strings
+                # OneDrive returns ISO 8601 like "2025-01-15T10:30:00Z"
+                if last_modified:
+                    try:
+                        from dateutil.parser import isoparse
+                        od_modified = isoparse(last_modified)
+                        # Ensure both are timezone-aware for comparison
+                        synced_at = existing.last_synced_at
+                        if synced_at.tzinfo is None:
+                            synced_at = synced_at.replace(tzinfo=timezone.utc)
+                        if od_modified.tzinfo is None:
+                            od_modified = od_modified.replace(tzinfo=timezone.utc)
+                        if synced_at >= od_modified:
+                            result.files_skipped += 1
+                            logger.debug(f"Skipping unchanged file: {file_name}")
+                            continue
+                    except Exception as e:
+                        logger.warning(f"Date comparison failed for {file_name}, re-syncing: {e}")
 
             # 4. Download file
             logger.info(f"Downloading: {file_name}")

@@ -191,7 +191,8 @@ def list_journals(
     category: Optional[str] = None,
     area: Optional[str] = None,
     search: Optional[str] = None,
-    limit: int = 30,
+    page: int = 1,
+    per_page: int = 20,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -220,7 +221,8 @@ def list_journals(
     else:
         query = query.order_by(desc(WorkJournal.created_at))
 
-    results = query.limit(limit).all()
+    offset = (page - 1) * per_page
+    results = query.offset(offset).limit(per_page).all()
     return [
         _to_response(j, display_name or username)
         for j, display_name, username in results
@@ -365,6 +367,83 @@ def get_ai_digest(
         "total_entries": len(journals),
         "contributors": len(set(j.user_id for j in journals)),
     }
+
+
+@router.put("/{journal_id}", response_model=JournalResponse)
+def update_journal(
+    journal_id: int,
+    data: JournalCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Edit a journal entry. Only the owner can edit."""
+    journal = db.query(WorkJournal).filter(WorkJournal.id == journal_id).first()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    if journal.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the author can edit this entry")
+
+    journal.title = data.title
+    journal.content = data.content
+    journal.department = data.department
+    journal.area = data.area
+    journal.is_public = data.is_public if data.is_public is not None else 1
+
+    # Re-generate embedding and AI analysis
+    text_for_embed = f"{data.title}\n{data.content}"
+    embedding = generate_embedding(text_for_embed)
+    journal.embedding = embedding
+
+    related = db.query(KnowledgeEntry).order_by(
+        KnowledgeEntry.embedding.l2_distance(embedding)
+    ).limit(3).all()
+    ai_result = _ai_process_journal(data.title, data.content, related)
+    journal.category = ai_result["category"]
+    journal.tags = ai_result["tags"]
+    journal.difficulty = ai_result["difficulty"]
+    journal.ai_summary = ai_result["ai_summary"]
+    journal.ai_lessons_learned = ai_result["ai_lessons_learned"]
+    journal.ai_related_sops = ai_result["ai_related_sops"]
+
+    # Update linked knowledge entry
+    kb = db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.source == "journal",
+        KnowledgeEntry.author_id == current_user.id,
+        KnowledgeEntry.title == f"[Work Journal] {journal.title}"
+    ).first()
+    if kb:
+        kb.title = f"[Work Journal] {data.title}"
+        kb.content = f"{data.content}\n\nAI Summary: {ai_result['ai_summary']}\nLessons: {ai_result['ai_lessons_learned']}"
+        kb.embedding = embedding
+
+    db.commit()
+    db.refresh(journal)
+    return _to_response(journal, current_user.display_name or current_user.username)
+
+
+@router.delete("/{journal_id}", status_code=204)
+def delete_journal(
+    journal_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a journal entry. Owner or admin can delete."""
+    journal = db.query(WorkJournal).filter(WorkJournal.id == journal_id).first()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Journal not found")
+    if journal.user_id != current_user.id and current_user.role.value != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized to delete this entry")
+
+    # Also remove linked knowledge entry
+    db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.source == "journal",
+        KnowledgeEntry.author_id == journal.user_id,
+        KnowledgeEntry.title == f"[Work Journal] {journal.title}"
+    ).delete()
+
+    db.delete(journal)
+    db.commit()
+    return None
 
 
 @router.post("/{journal_id}/helpful")

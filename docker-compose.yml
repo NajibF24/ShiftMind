@@ -1,0 +1,82 @@
+services:
+  db:
+    image: ankane/pgvector:v0.5.1
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shiftmind_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shiftmind_password}
+      POSTGRES_DB: ${POSTGRES_DB:-shiftmind_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shiftmind_user} -d ${POSTGRES_DB:-shiftmind_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shiftmind_user}:${POSTGRES_PASSWORD:-shiftmind_password}@db:5432/${POSTGRES_DB:-shiftmind_db}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-your_super_secret_jwt_key_here}
+      ALGORITHM: "HS256"
+      NINEROUTER_BASE_URL: ${NINEROUTER_BASE_URL:-http://host.docker.internal:20128/v1}
+      NINEROUTER_API_KEY: ${NINEROUTER_API_KEY:-sk-local-dev}
+      NINEROUTER_MODEL: ${NINEROUTER_MODEL:-openai/gpt-4o-mini}
+      MS_TENANT_ID: ${MS_TENANT_ID:-}
+      MS_CLIENT_ID: ${MS_CLIENT_ID:-}
+      MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
+      MS_ONEDRIVE_USER_ID: ${MS_ONEDRIVE_USER_ID:-}
+      MS_ONEDRIVE_ROOT_FOLDER: ${MS_ONEDRIVE_ROOT_FOLDER:-GYS Procedures and Policy}
+      LDAP_URL: ${LDAP_URL:-}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-DC=gyssteel,DC=com}
+      LDAP_SEARCH_FILTER: ${LDAP_SEARCH_FILTER:-(sAMAccountName={username})}
+      LDAP_USERNAME_ATTRIBUTE: ${LDAP_USERNAME_ATTRIBUTE:-sAMAccountName}
+      LDAP_MAIL_ATTRIBUTE: ${LDAP_MAIL_ATTRIBUTE:-mail}
+      LDAP_DISPLAYNAME_ATTRIBUTE: ${LDAP_DISPLAYNAME_ATTRIBUTE:-cn}
+      LDAP_FIRSTNAME_ATTRIBUTE: ${LDAP_FIRSTNAME_ATTRIBUTE:-givenName}
+      LDAP_LASTNAME_ATTRIBUTE: ${LDAP_LASTNAME_ATTRIBUTE:-sn}
+      LDAP_ADMIN_USERS: ${LDAP_ADMIN_USERS:-najib.fauzan}
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "gyssteel-dc:172.16.21.100"
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=/api
+    command: npm run dev -- --host 0.0.0.0
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { FileSignature, Plus, CheckCircle, XCircle, Clock, FileText, Upload, Loader2 } from 'lucide-react';
+import { FileSignature, Plus, CheckCircle, XCircle, Clock, FileText, Upload, Loader2, RefreshCw } from 'lucide-react';
 
 export default function Approvals() {
   const [approvals, setApprovals] = useState([]);
@@ -18,7 +18,7 @@ export default function Approvals() {
   const fetch = () => {
     setLoading(true);
     axios.get('/api/approvals', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-      .then(r => setApprovals(r.data)).catch(() => {}).finally(() => setLoading(false));
+      .then(r => setApprovals(r.data.items || [])).catch(() => {}).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetch(); }, []);
@@ -58,18 +58,23 @@ export default function Approvals() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="page-container">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 className="page-title"><FileSignature size={24} /> Approvals & Contract Review</h1>
           <p className="page-subtitle">Submit requests, review contracts with AI assistance</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Plus size={16} /> New Request
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-ghost" onClick={fetch} disabled={loading} style={{ padding: '10px' }}>
+            <RefreshCw size={18} className={loading ? "spin" : ""} />
+          </button>
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Plus size={16} /> New Request
+          </button>
+        </div>
       </div>
 
       {/* AI Contract Review */}
-      <div className="card" style={{ padding: '24px', marginBottom: '24px' }}>
+      <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
         <h3 style={{ marginBottom: '16px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <FileText size={20} /> AI Contract Review
         </h3>
@@ -77,7 +82,7 @@ export default function Approvals() {
           Upload a contract document (PDF, DOCX, TXT) and AI will analyze risks and obligations.
         </p>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={e => setFile(e.target.files[0])} className="input" style={{ flex: 1 }} />
+          <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={e => setFile(e.target.files[0])} className="input-field" style={{ flex: 1, padding: '10px' }} />
           <button className="btn btn-primary" onClick={handleReview} disabled={!file || reviewing}>
             {reviewing ? <Loader2 size={16} className="spin" /> : <Upload size={16} />} Review
           </button>
@@ -91,15 +96,15 @@ export default function Approvals() {
       </div>
 
       {showForm && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="card" style={{ padding: '24px', marginBottom: '24px' }}>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
           <h3 style={{ marginBottom: '16px', color: 'var(--text-primary)' }}>New Approval Request</h3>
-          <select className="input" value={requestType} onChange={e => setRequestType(e.target.value)} style={{ width: '100%', marginBottom: '12px' }}>
+          <select className="input-field" value={requestType} onChange={e => setRequestType(e.target.value)} style={{ width: '100%', marginBottom: '12px' }}>
             <option value="contract">Contract Review</option>
             <option value="purchase">Purchase Order</option>
             <option value="workflow">Workflow Approval</option>
           </select>
-          <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Request title" style={{ width: '100%', marginBottom: '12px' }} />
-          <textarea className="input" value={details} onChange={e => setDetails(e.target.value)} placeholder="Details..." rows={4} style={{ width: '100%', marginBottom: '12px', resize: 'vertical' }} />
+          <input className="input-field" value={title} onChange={e => setTitle(e.target.value)} placeholder="Request title" style={{ width: '100%', marginBottom: '12px' }} />
+          <textarea className="input-field input-field--textarea" value={details} onChange={e => setDetails(e.target.value)} placeholder="Details..." style={{ width: '100%', marginBottom: '12px' }} />
           <button className="btn btn-primary" onClick={submitApproval}>Submit Request</button>
         </motion.div>
       )}
@@ -113,7 +118,7 @@ export default function Approvals() {
           {approvals.map(a => {
             const badge = statusBadge(a.status);
             return (
-              <div key={a.id} className="card" style={{ padding: '20px' }}>
+              <div key={a.id} className="glass-panel" style={{ padding: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <div>
                     <h3 style={{ color: 'var(--text-primary)', margin: 0, fontSize: '1rem' }}>{a.title}</h3>

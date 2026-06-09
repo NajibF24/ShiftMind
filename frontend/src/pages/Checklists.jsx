@@ -13,7 +13,7 @@ export default function Checklists() {
   const fetch = () => {
     setLoading(true);
     axios.get('/api/checklists', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-      .then(r => setChecklists(r.data)).catch(() => {}).finally(() => setLoading(false));
+      .then(r => setChecklists(r.data.items || [])).catch(() => {}).finally(() => setLoading(false));
   };
 
   useEffect(() => { fetch(); }, []);
@@ -51,18 +51,18 @@ export default function Checklists() {
       </div>
 
       {showForm && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="card" style={{ marginBottom: '24px', padding: '24px' }}>
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="glass-panel" style={{ marginBottom: '24px', padding: '24px' }}>
           <h3 style={{ marginBottom: '16px', color: 'var(--text-primary)' }}>Create Checklist</h3>
-          <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Checklist title (e.g. EAF Morning Inspection)" style={{ marginBottom: '16px', width: '100%' }} />
+          <input className="input-field" value={title} onChange={e => setTitle(e.target.value)} placeholder="Checklist title (e.g. EAF Morning Inspection)" style={{ marginBottom: '16px' }} />
           {items.map((it, i) => (
             <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-              <input className="input" value={it.item} onChange={e => updateItem(i, 'item', e.target.value)} placeholder="Item name" style={{ flex: 2 }} />
-              <select className="input" value={it.status} onChange={e => updateItem(i, 'status', e.target.value)} style={{ flex: 1 }}>
+              <input className="input-field" value={it.item} onChange={e => updateItem(i, 'item', e.target.value)} placeholder="Item name" style={{ flex: 2 }} />
+              <select className="input-field" value={it.status} onChange={e => updateItem(i, 'status', e.target.value)} style={{ flex: 1 }}>
                 <option value="OK">OK</option>
                 <option value="FAIL">FAIL</option>
                 <option value="N/A">N/A</option>
               </select>
-              <input className="input" value={it.notes} onChange={e => updateItem(i, 'notes', e.target.value)} placeholder="Notes" style={{ flex: 2 }} />
+              <input className="input-field" value={it.notes} onChange={e => updateItem(i, 'notes', e.target.value)} placeholder="Notes" style={{ flex: 2 }} />
               {items.length > 1 && <button className="btn btn-danger" onClick={() => removeItem(i)} style={{ padding: '6px 10px' }}>×</button>}
             </div>
           ))}
@@ -80,7 +80,7 @@ export default function Checklists() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {checklists.map(cl => (
-            <div key={cl.id} className="card" style={{ padding: '20px' }}>
+            <div key={cl.id} className="glass-panel" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h3 style={{ color: 'var(--neon-cyan)', margin: 0 }}>{cl.title}</h3>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{new Date(cl.created_at).toLocaleString()}</span>

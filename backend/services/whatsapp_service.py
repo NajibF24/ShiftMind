@@ -118,10 +118,23 @@ def get_whatsapp_config(db=None) -> dict:
     if db:
         load_config_from_db(db)
         
+    connected = False
+    qr = None
+    try:
+        import httpx
+        resp = httpx.get(f"{WHATSAPP_API_URL}/api/status", timeout=2.0)
+        if resp.status_code == 200:
+            data = resp.json()
+            connected = data.get("connected", False)
+            qr = data.get("qr", None)
+    except Exception as e:
+        logger.warning(f"Failed to check WhatsApp server status: {e}")
+        
     return {
         "enabled": WHATSAPP_ENABLED,
         "api_url": WHATSAPP_API_URL,
         "recipients_configured": len([r for r in NOTIFICATION_RECIPIENTS if r.strip()]),
         "recipients": NOTIFICATION_RECIPIENTS,
-        "connected": _connected,
+        "connected": connected,
+        "qr": qr,
     }

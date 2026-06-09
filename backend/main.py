@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from db import engine, Base
+from sqlalchemy.orm import Session
+from db import engine, Base, get_db
 
 # Import models to ensure they are registered with SQLAlchemy
 import models.user

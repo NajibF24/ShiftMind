@@ -8,29 +8,42 @@ import {
 const API_HEADERS = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const Settings = () => {
-  const [waConfig, setWaConfig] = useState({ enabled: false, recipients: [], connected: false });
+  const [waConfig, setWaConfig] = useState({ enabled: false, recipients: [], connected: false, qr: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
   const [newNumber, setNewNumber] = useState('');
 
-  useEffect(() => { fetchStatus(); }, []);
-
-  const fetchStatus = async () => {
-    setLoading(true);
+  const fetchStatus = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const res = await axios.get('/api/whatsapp/status', { headers: API_HEADERS() });
       setWaConfig({
         enabled: res.data.enabled,
         recipients: res.data.recipients || [],
-        connected: res.data.connected
+        connected: res.data.connected,
+        qr: res.data.qr
       });
     } catch (err) {
       console.error('Failed to fetch WA status', err);
       setMessage({ type: 'error', text: 'Gagal memuat konfigurasi WhatsApp.' });
     }
-    setLoading(false);
+    if (showLoading) setLoading(false);
   };
+
+  useEffect(() => {
+    fetchStatus(true);
+  }, []);
+
+  useEffect(() => {
+    let interval;
+    if (waConfig.enabled && !waConfig.connected) {
+      interval = setInterval(() => {
+        fetchStatus(false);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [waConfig.enabled, waConfig.connected]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -119,10 +132,17 @@ const Settings = () => {
                {waConfig.enabled ? <Power size={14} /> : <PowerOff size={14} />}
                {waConfig.enabled ? 'Enabled' : 'Disabled'}
              </button>
-          </div>
-        </div>
+           </div>
+         </div>
 
-        <div style={{ opacity: waConfig.enabled ? 1 : 0.5, transition: 'opacity 0.3s' }}>
+         {waConfig.enabled && !waConfig.connected && waConfig.qr && (
+           <div style={{ textAlign: 'center', margin: '24px 0' }}>
+             <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Scan QR code to connect WhatsApp</p>
+             <img src={waConfig.qr} alt="WhatsApp QR" style={{ width: '200px', height: '200px' }} />
+           </div>
+         )}
+
+         <div style={{ opacity: waConfig.enabled ? 1 : 0.5, transition: 'opacity 0.3s' }}>
             <h3 style={{ fontSize: '0.9rem', fontWeight: '600', marginBottom: '16px' }}>Daftar Penerima (Nomor WA)</h3>
             
             <form onSubmit={handleAddNumber} style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>

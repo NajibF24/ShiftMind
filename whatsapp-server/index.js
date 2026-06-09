@@ -1,7 +1,8 @@
 const express = require('express');
 const { Server } = require('socket.io');
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const http = require('http');
 
 const app = express();
@@ -14,6 +15,7 @@ const io = new Server(server, {
 
 let waSocket = null;
 let isConnected = false;
+let currentQR = null;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
@@ -23,23 +25,30 @@ async function connectToWhatsApp() {
         printQRInTerminal: true,
     });
 
-    waSocket.ev.on('connection.update', (update) => {
+    waSocket.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
         if (qr) {
             console.log('Scan the QR code above to log in to WhatsApp');
+            try {
+                currentQR = await QRCode.toDataURL(qr);
+            } catch (err) {
+                console.error('Failed to generate QR data url', err);
+            }
         }
 
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('Connection closed due to', lastDisconnect.error, ', reconnecting:', shouldReconnect);
             isConnected = false;
+            currentQR = null;
             if (shouldReconnect) {
                 connectToWhatsApp();
             }
         } else if (connection === 'open') {
             console.log('WhatsApp connection is open');
             isConnected = true;
+            currentQR = null;
         }
     });
 
@@ -106,7 +115,7 @@ app.post('/api/send', async (req, res) => {
 });
 
 app.get('/api/status', (req, res) => {
-    return res.json({ connected: isConnected });
+    return res.json({ connected: isConnected, qr: currentQR });
 });
 
 const PORT = process.env.PORT || 3000;

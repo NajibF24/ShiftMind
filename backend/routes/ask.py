@@ -145,24 +145,45 @@ def ask_ai(
         should_learn = True
         if existing_similar:
             ratio = SequenceMatcher(None, req.query.lower(), existing_similar.title.lower()).ratio()
-            if ratio > 0.85:
+            if ratio > 0.9:  # Increased threshold to 0.9 to avoid variations of same question
                 should_learn = False
         
         if should_learn:
-            # Generate embedding for the new knowledge
-            history_embedding = generate_embedding(req.query + "\n" + answer)
+            # Check frequency: only add to knowledge base if query has been asked multiple times
+            from datetime import datetime, timedelta
             
-            new_history_entry = KnowledgeEntry(
-                title=req.query,
-                content=answer,
-                category="Auto-Learned",
-                department="All",
-                source="history",
-                confidence_score=0.8,
-                embedding=history_embedding,
-                author_id=current_user.id
-            )
-            db.add(new_history_entry)
+            # Count similar queries in the last 30 days
+            similar_queries = db.query(QueryLog).filter(
+                QueryLog.created_at >= datetime.utcnow() - timedelta(days=30),
+                QueryLog.user_id == current_user.id
+            ).all()
+            
+            # Count how many queries are similar (using text similarity)
+            query_count = 0
+            for log in similar_queries:
+                ratio = SequenceMatcher(None, req.query.lower(), log.query.lower()).ratio()
+                if ratio > 0.8:  # Consider similar queries
+                    query_count += 1
+            
+            # Only add to knowledge base if the same/similar query has been asked at least 2 times
+            if query_count >= 2:
+                # Generate embedding for the new knowledge
+                history_embedding = generate_embedding(req.query + "\n" + answer)
+                
+                # Adjust confidence based on frequency
+                confidence_score = min(0.9, 0.7 + (query_count * 0.1))  # Max 0.9 confidence
+                
+                new_history_entry = KnowledgeEntry(
+                    title=req.query,
+                    content=answer,
+                    category="Auto-Learned",
+                    department="All",
+                    source="history",
+                    confidence_score=confidence_score,
+                    embedding=history_embedding,
+                    author_id=current_user.id
+                )
+                db.add(new_history_entry)
             
         db.commit()
     except Exception as e:

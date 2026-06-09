@@ -2,13 +2,15 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import {
   Settings as SettingsIcon, MessageSquare, Save, CheckCircle2,
-  AlertCircle, Smartphone, Plus, Trash2, Power, PowerOff
+  AlertCircle, Smartphone, Plus, Trash2, Power, PowerOff,
+  Server, Database, Activity, RefreshCw
 } from 'lucide-react';
 
 const API_HEADERS = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const Settings = () => {
   const [waConfig, setWaConfig] = useState({ enabled: false, recipients: [], connected: false, qr: null });
+  const [systemInfo, setSystemInfo] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
@@ -17,15 +19,19 @@ const Settings = () => {
   const fetchStatus = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      const res = await axios.get('/api/whatsapp/status', { headers: API_HEADERS() });
+      const [waRes, healthRes] = await Promise.all([
+        axios.get('/api/whatsapp/status', { headers: API_HEADERS() }),
+        axios.get('/api/health').catch(() => ({ data: null })),
+      ]);
       setWaConfig({
-        enabled: res.data.enabled,
-        recipients: res.data.recipients || [],
-        connected: res.data.connected,
-        qr: res.data.qr
+        enabled: waRes.data.enabled,
+        recipients: waRes.data.recipients || [],
+        connected: waRes.data.connected,
+        qr: waRes.data.qr
       });
+      if (healthRes.data) setSystemInfo(healthRes.data);
     } catch (err) {
-      console.error('Failed to fetch WA status', err);
+      console.error('Failed to fetch status', err);
       setMessage({ type: 'error', text: 'Gagal memuat konfigurasi WhatsApp.' });
     }
     if (showLoading) setLoading(false);
@@ -64,7 +70,14 @@ const Settings = () => {
   const handleAddNumber = (e) => {
     e.preventDefault();
     if (!newNumber.trim()) return;
+    
+    // Validation logic: must start with 62 or 08
     const cleanNum = newNumber.replace(/\D/g, '');
+    if (!cleanNum.startsWith('62') && !cleanNum.startsWith('08')) {
+      setMessage({ type: 'error', text: 'Format nomor tidak valid! Nomor harus diawali dengan 62 atau 08.' });
+      return;
+    }
+    
     if (!waConfig.recipients.includes(cleanNum)) {
       setWaConfig(prev => ({ ...prev, recipients: [...prev.recipients, cleanNum] }));
     }
@@ -149,7 +162,7 @@ const Settings = () => {
                 <input 
                     value={newNumber} 
                     onChange={e => setNewNumber(e.target.value)} 
-                    placeholder="Contoh: 08123456789" 
+                    placeholder="Contoh: 08123456789 atau 628123456789" 
                     className="form-input" 
                     style={{ maxWidth: '300px' }}
                     disabled={!waConfig.enabled}
@@ -190,6 +203,31 @@ const Settings = () => {
                     <Save size={15} /> {saving ? 'Menyimpan...' : 'Simpan Konfigurasi'}
                 </button>
             </div>
+        </div>
+      </div>
+      {/* System Info */}
+      <div className="glass-panel--strong" style={{ padding: '32px', borderRadius: 'var(--radius-xl)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(14,165,233,0.06)', border: '1px solid rgba(14,165,233,0.1)' }}>
+            <Server size={15} color="var(--neon-cyan)" />
+          </div>
+          <h2 style={{ fontSize: '1rem', fontWeight: '600', fontFamily: 'var(--font-display)' }}>System Info</h2>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+          {[
+            { label: 'Backend Status', value: systemInfo?.status || 'Unknown', icon: Activity },
+            { label: 'Database', value: systemInfo?.db || 'Unknown', icon: Database },
+            { label: 'API Version', value: systemInfo?.version || 'v2.0', icon: RefreshCw },
+          ].map(({ label, value, icon: Icon }) => (
+            <div key={label} style={{ padding: '16px', borderRadius: '10px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                <Icon size={13} color="var(--neon-cyan)" /> {label}
+              </div>
+              <div style={{ fontSize: '1rem', fontWeight: '600', color: value === 'operational' || value === 'Online' ? 'var(--neon-green)' : 'var(--text-primary)' }}>
+                {value === 'operational' || value === 'Online' ? 'Operational' : value}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>

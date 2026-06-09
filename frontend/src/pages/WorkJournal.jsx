@@ -27,6 +27,7 @@ const WorkJournal = () => {
   const [tab, setTab] = useState('timeline'); // timeline | my-stats | digest
   const [page, setPage] = useState(1);
   const [editId, setEditId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   // Voice input
   const [isRecording, setIsRecording] = useState(false);
@@ -113,9 +114,9 @@ const WorkJournal = () => {
   };
 
   const handleDelete = async (id) => {
-      if (!confirm('Hapus entri journal ini?')) return;
       try {
           await axios.delete(`${API}/${id}`, { headers: headers() });
+          setConfirmDelete(null);
           fetchJournals(search, filterArea, 1);
       } catch (e) {
           alert('Error: ' + (e.response?.data?.detail || e.message));
@@ -245,7 +246,7 @@ const WorkJournal = () => {
         <div className="glass-panel animate-fade-in-up" style={{ padding: '28px', marginBottom: '24px', borderLeft: '4px solid var(--neon-cyan)' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '20px', fontFamily: 'var(--font-display)' }}>
             <BookOpen size={16} style={{ marginRight: '8px', verticalAlign: 'middle' }} />
-            Catat Aktivitas Kerja
+            {editId ? 'Edit Catatan' : 'Catat Aktivitas Baru'}
           </h3>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <input
@@ -281,10 +282,24 @@ const WorkJournal = () => {
                 placeholder="Department" className="form-input" />
             </div>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={form.is_public === 1}
-                  onChange={e => setForm({ ...form, is_public: e.target.checked ? 1 : 0 })} />
-                <Eye size={13} /> Visible to team
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                <div onClick={() => setForm({ ...form, is_public: form.is_public === 1 ? 0 : 1 })}
+                  style={{
+                    width: '36px', height: '20px', borderRadius: '10px',
+                    background: form.is_public === 1 ? 'var(--neon-cyan)' : 'rgba(255,255,255,0.1)',
+                    position: 'relative', transition: 'background 0.3s', flexShrink: 0,
+                  }}>
+                  <div style={{
+                    width: '16px', height: '16px', borderRadius: '50%',
+                    background: '#fff', position: 'absolute', top: '2px',
+                    left: form.is_public === 1 ? '18px' : '2px',
+                    transition: 'left 0.3s var(--ease-out-expo)',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  }} />
+                </div>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Eye size={13} /> Visible to team
+                </span>
               </label>
               <div style={{ flex: 1 }} />
               <button type="button" onClick={() => {
@@ -323,14 +338,28 @@ const WorkJournal = () => {
 
           {/* Journal List */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-              <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
-              Loading...
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {[1,2,3].map(i => (
+                <div key={i} className="glass-panel" style={{ padding: '20px', opacity: 0.6 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ height: '12px', width: '120px', borderRadius: '6px', background: 'rgba(255,255,255,0.06)', marginBottom: '10px' }} />
+                      <div style={{ height: '18px', width: '70%', borderRadius: '6px', background: 'rgba(255,255,255,0.08)', marginBottom: '8px' }} />
+                      <div style={{ height: '14px', width: '90%', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }} />
+                    </div>
+                    <div style={{ width: '50px', height: '30px', borderRadius: '8px', background: 'rgba(255,255,255,0.04)' }} />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : journals.length === 0 ? (
             <div className="glass-panel" style={{ textAlign: 'center', padding: '60px' }}>
-              <BookOpen size={40} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>Belum ada journal entry. Mulai catat aktivitas kerja Anda!</p>
+              <BookOpen size={48} color="var(--text-muted)" style={{ marginBottom: '16px', opacity: 0.4 }} />
+              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '8px' }}>Belum ada catatan hari ini</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '24px' }}>Mulai catat aktivitas kerja pertamamu — AI akan mengekstrak tacit knowledge dari setiap catatan.</p>
+              <button onClick={() => { setForm({ title: '', content: '', department: '', area: '', is_public: 1 }); setEditId(null); setShowForm(true); }} className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={15} /> Buat Catatan Pertama
+              </button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -376,6 +405,8 @@ const WorkJournal = () => {
                         }}>
                         <ThumbsUp size={12} /> {j.helpful_count || 0}
                       </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleEdit(j); }} className="btn-ghost" style={{ padding: '4px 10px', fontSize: '0.65rem', borderRadius: '6px' }}>Edit</button>
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(j); }} style={{ padding: '4px 10px', fontSize: '0.65rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Del</button>
                       <ChevronRight size={14} color="var(--text-muted)" style={{ transform: showDetail === j.id ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
                     </div>
                   </div>
@@ -418,11 +449,6 @@ const WorkJournal = () => {
                           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{j.ai_related_sops}</p>
                         </div>
                       )}
-                      
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
-                          <button onClick={(e) => { e.stopPropagation(); handleEdit(j); }} className="btn-ghost" style={{ padding: '6px 12px', fontSize: '0.75rem' }}>Edit</button>
-                          <button onClick={(e) => { e.stopPropagation(); handleDelete(j.id); }} style={{ padding: '6px 12px', fontSize: '0.75rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Delete</button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -511,6 +537,25 @@ const WorkJournal = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="menu-overlay menu-overlay--open" style={{ padding: 0, justifyContent: 'center', alignItems: 'center', background: 'rgba(10,15,30,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setConfirmDelete(null)}>
+          <div className="glass-panel animate-fade-in-up" style={{ maxWidth: '420px', width: '90%', padding: '32px', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            <AlertTriangle size={48} color="var(--danger)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Hapus Journal Entry?</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              "{confirmDelete.title}" akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(null)}>Batal</button>
+              <button className="btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => handleDelete(confirmDelete.id)}>Hapus</button>
+            </div>
+          </div>
         </div>
       )}
 

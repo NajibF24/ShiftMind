@@ -295,7 +295,14 @@ const Login = ({ onLogin }) => {
           .login-left-panel { display: none !important; }
           div[style*="width: 440px"] { width: 100% !important; }
         }
+        @media (prefers-reduced-motion: reduce) {
+          .login-glitch { animation: none !important; }
+          .animate-fade-in, .animate-fade-in-up { animation: none !important; }
+        }
       `}</style>
+
+      {/* Apply reduced-motion class to glitch element */}
+      {glitch && <style>{`@media (prefers-reduced-motion: reduce) { .login-glitch { animation: none !important; } }`}</style>}
     </div>
   );
 };

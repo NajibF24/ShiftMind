@@ -1,7 +1,8 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Environment, CameraControls } from '@react-three/drei';
-import ArtGallery3D, { PAINTING_DATA, GALLERY_RADIUS } from '../components/3d/ArtGallery3D';
+import ArtGallery3D from '../components/3d/ArtGallery3D';
+import { PAINTING_DATA, GALLERY_RADIUS } from '../components/3d/galleryData';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';

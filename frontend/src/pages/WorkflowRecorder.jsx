@@ -24,6 +24,7 @@ const WorkflowRecorder = () => {
   const role = localStorage.getItem('role');
   const [page, setPage] = useState(1);
   const [editId, setEditId] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const [form, setForm] = useState({
     title: '', description: '', category: '', department: '', area: '',
@@ -132,9 +133,9 @@ const WorkflowRecorder = () => {
   };
 
   const handleDelete = async (id) => {
-      if (!confirm('Hapus workflow ini?')) return;
       try {
           await axios.delete(`${API}/${id}`, { headers: headers() });
+          setConfirmDelete(null);
           fetchWorkflows(1);
       } catch (e) {
           alert('Error: ' + (e.response?.data?.detail || e.message));
@@ -274,7 +275,7 @@ const WorkflowRecorder = () => {
               className="form-input" required />
             <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
               placeholder="Deskripsi singkat tujuan workflow ini" className="form-input" rows={2} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div className="wf-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
               <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="form-input">
                 <option value="">Category</option>
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -376,7 +377,9 @@ const WorkflowRecorder = () => {
                   <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '6px', color: 'var(--text-primary)' }}>{wf.title}</h3>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {wf.category && <span className="badge badge--cyan" style={{ fontSize: '0.6rem' }}>{wf.category}</span>}
+                    {wf.is_approved !== 1 && <span className="badge" style={{ fontSize: '0.6rem', background: 'rgba(245,158,11,0.08)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.2)' }}><Clock size={9} /> Pending Review</span>}
                     {wf.is_approved === 1 && <span className="badge badge--green" style={{ fontSize: '0.6rem' }}><CheckCircle size={9} /> Approved</span>}
+                    {wf.version && <span className="badge" style={{ fontSize: '0.6rem', background: 'rgba(124,58,237,0.08)', color: 'var(--neon-purple)', border: '1px solid rgba(124,58,237,0.2)' }}>v{wf.version}</span>}
                     {wf.ai_estimated_time && <span className="badge" style={{ fontSize: '0.6rem', background: 'rgba(14,165,233,0.04)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}><Clock size={9} /> {wf.ai_estimated_time}</span>}
                   </div>
                 </div>
@@ -413,18 +416,21 @@ const WorkflowRecorder = () => {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
                 <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>by {wf.author_name}</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <button onClick={(e) => { e.stopPropagation(); viewFullWorkflow(wf.id); }} className="btn-ghost" style={{ fontSize: '0.65rem', padding: '4px 8px' }}>
+                    <Eye size={11} /> SOP
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); const token = localStorage.getItem('token'); window.open(`/api/export/workflow/${wf.id}/docx?token=${token}`, '_blank'); }} className="btn-ghost" style={{ fontSize: '0.65rem', padding: '4px 8px' }}>
+                    <FileText size={11} /> DOCX
+                  </button>
                   {role === 'admin' && wf.is_approved !== 1 && (
                     <button onClick={(e) => { e.stopPropagation(); handleApprove(wf.id); }}
-                      className="btn-ghost" style={{ fontSize: '0.7rem', padding: '4px 10px', color: 'var(--neon-green)' }}>
-                      <Award size={12} /> Approve
+                      className="btn-ghost" style={{ fontSize: '0.65rem', padding: '4px 8px', color: 'var(--neon-green)' }}>
+                      <Award size={11} /> Approve
                     </button>
                   )}
-                  <button onClick={(e) => { e.stopPropagation(); handleEdit(wf); }} className="btn-ghost" style={{ padding: '4px 10px', fontSize: '0.7rem' }}>Edit</button>
-                  <button onClick={(e) => { e.stopPropagation(); handleDelete(wf.id); }} style={{ padding: '4px 10px', fontSize: '0.7rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>Delete</button>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--neon-cyan)', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '6px' }}>
-                    View SOP <ChevronRight size={12} />
-                  </span>
+                  <button onClick={(e) => { e.stopPropagation(); handleEdit(wf); }} className="btn-ghost" style={{ padding: '4px 8px', fontSize: '0.65rem' }}>Edit</button>
+                  <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(wf); }} style={{ padding: '4px 8px', fontSize: '0.65rem', background: 'rgba(225,29,72,0.1)', color: 'var(--danger)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>Del</button>
                 </div>
               </div>
             </div>
@@ -439,6 +445,31 @@ const WorkflowRecorder = () => {
               </button>
           </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="menu-overlay menu-overlay--open" style={{ padding: 0, justifyContent: 'center', alignItems: 'center', background: 'rgba(10,15,30,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setConfirmDelete(null)}>
+          <div className="glass-panel animate-fade-in-up" style={{ maxWidth: '420px', width: '90%', padding: '32px', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            <AlertTriangle size={48} color="var(--danger)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Hapus Workflow?</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              "{confirmDelete.title}" akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDelete(null)}>Batal</button>
+              <button className="btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => handleDelete(confirmDelete.id)}>Hapus</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 768px) {
+          .wf-form-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 };

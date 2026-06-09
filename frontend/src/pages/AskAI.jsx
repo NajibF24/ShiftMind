@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { Send, BrainCircuit, User, Loader2, Sparkles, Trash2, Zap, MessageSquare, TrendingUp, Globe, Newspaper, Mic, MicOff } from 'lucide-react';
+import { Send, BrainCircuit, User, Loader2, Sparkles, Trash2, Zap, MessageSquare, TrendingUp, Globe, Newspaper, Mic, MicOff, AlertTriangle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -25,6 +25,8 @@ const AskAI = () => {
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   useEffect(() => {
     axios.get('/static/latest_news.json')
@@ -44,6 +46,14 @@ const AskAI = () => {
   }, [messages]);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    if (loading) {
+      setLoadingTimeout(false);
+      const t = setTimeout(() => setLoadingTimeout(true), 30000);
+      return () => clearTimeout(t);
+    }
+  }, [loading]);
 
   const isNewsQuery = (q) => {
     const lower = q.toLowerCase();
@@ -230,7 +240,7 @@ const AskAI = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center',
         }}>
           <div style={{ width: '100%', maxWidth: '700px', display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
-            <button onClick={clearChat} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>
+            <button onClick={() => setShowClearConfirm(true)} className="btn-ghost" style={{ fontSize: '0.75rem', padding: '6px 14px' }}>
               <Trash2 size={12} /> Clear Chat
             </button>
           </div>
@@ -288,7 +298,7 @@ const AskAI = () => {
                   <Loader2 size={15} color="var(--neon-cyan)" className="animate-spin" />
                 </div>
                 <div style={{ paddingTop: '8px' }}>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                     {[0, 1, 2].map(i => (
                       <div key={i} style={{
                         width: '6px', height: '6px', borderRadius: '50%',
@@ -296,6 +306,12 @@ const AskAI = () => {
                         animation: `pulseDot 1.2s ease-in-out ${i * 0.15}s infinite`,
                       }} />
                     ))}
+                    {loadingTimeout && (
+                      <span style={{ marginLeft: '12px', fontSize: '0.78rem', color: 'var(--warning)' }}>
+                        <AlertTriangle size={12} style={{ display: 'inline', marginBottom: '-2px', marginRight: '4px' }} />
+                        AI masih berpikir... mungkin butuh waktu hingga 60 detik
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -370,6 +386,25 @@ const AskAI = () => {
             </button>
           </div>
         </div>
+
+      {/* Clear Chat Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="menu-overlay menu-overlay--open" style={{ padding: 0, justifyContent: 'center', alignItems: 'center', background: 'rgba(10,15,30,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setShowClearConfirm(false)}>
+          <div className="glass-panel animate-fade-in-up" style={{ maxWidth: '420px', width: '90%', padding: '32px', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            <Trash2 size={48} color="var(--warning)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Hapus Semua Pesan?</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              Seluruh riwayat chat akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setShowClearConfirm(false)}>Batal</button>
+              <button className="btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => { clearChat(); setShowClearConfirm(false); }}>Hapus</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -43,22 +43,6 @@ const Dashboard = () => {
     fetchStats();
     fetchSyncStatus();
     fetchHealth();
-    
-    // Set up SSE connection
-    const token = localStorage.getItem('token');
-    const sseUrl = `/api/dashboard/stream?token=${token}`;
-    const eventSource = new EventSource(sseUrl);
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (!data.error) {
-          setStats(data);
-        }
-      } catch (e) {
-        console.error("Failed to parse SSE data", e);
-      }
-    };
 
     // Fetch static news data
     axios.get('/static/latest_news.json')
@@ -71,8 +55,6 @@ const Dashboard = () => {
       .catch(() => {
         setMarketError(true);
       });
-      
-    return () => eventSource.close();
   }, []);
 
   const fetchStats = async () => {
@@ -110,22 +92,24 @@ const Dashboard = () => {
     setIsSyncing(true);
     try {
       await axios.post('/api/knowledge/sync/manual', {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        timeout: 120000
       });
-      // Poll sync status occasionally
       const pollTimer = setInterval(async () => {
-        const r = await axios.get('/api/sync/status', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
-        setSyncStatus(r.data);
-        if (!r.data.is_running) {
-          clearInterval(pollTimer);
-          setIsSyncing(false);
-          fetchStats(); // Update dashboard with new entries
-        }
+        try {
+          const r = await axios.get('/api/sync/status', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+          setSyncStatus(r.data);
+          if (!r.data.is_running) {
+            clearInterval(pollTimer);
+            setIsSyncing(false);
+            fetchStats();
+          }
+        } catch { clearInterval(pollTimer); setIsSyncing(false); }
       }, 3000);
     } catch (e) {
-      alert('Sync failed: ' + (e.response?.data?.detail || e.message));
+      alert('Sync failed: ' + (e.response?.data?.detail || e.message || 'Connection timeout'));
       setIsSyncing(false);
     }
   };

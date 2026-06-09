@@ -94,14 +94,17 @@ const KnowledgeManager = () => {
     setSeeding(false);
   };
 
+  const [confirmDeleteSource, setConfirmDeleteSource] = useState(null);
+
   const handleDeleteBySource = async (source) => {
-    if (!window.confirm(`Hapus SEMUA knowledge dari "${source}"?`)) return;
-    try { const res = await axios.delete(`/api/knowledge/source/${source}`, { headers: API_HEADERS() }); setMessage({ type: 'success', text: res.data.message }); fetchAll(); }
+    try { const res = await axios.delete(`/api/knowledge/source/${source}`, { headers: API_HEADERS() }); setMessage({ type: 'success', text: res.data.message }); fetchAll(); setConfirmDeleteSource(null); }
     catch { setMessage({ type: 'error', text: 'Gagal menghapus' }); }
   };
 
+  const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
+
   const handleDeleteEntry = async (id) => {
-    try { await axios.delete(`/api/knowledge/${id}`, { headers: API_HEADERS() }); setEntries(entries.filter(e => e.id !== id)); }
+    try { await axios.delete(`/api/knowledge/${id}`, { headers: API_HEADERS() }); setEntries(entries.filter(e => e.id !== id)); setConfirmDeleteEntry(null); }
     catch { console.error('Delete failed'); }
   };
 
@@ -366,13 +369,20 @@ const KnowledgeManager = () => {
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
           <h2 style={{ fontSize: '0.9rem', fontWeight: '600', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={14} color="var(--neon-cyan)" /> Knowledge Entries {sourceFilter && `— ${sourceFilter}`}
+            <FileText size={14} color="var(--neon-cyan)" /> Knowledge Entries {entries.length > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>({entries.length})</span>}
           </h2>
-          <div className="filter-toggle">
-            {[['', 'All'], ['company', 'Company'], ['onedrive', 'OneDrive'], ['manual', 'Manual']].map(([f, label]) => (
-              <button key={f} className={`filter-toggle__btn ${sourceFilter === f ? 'filter-toggle__btn--active' : ''}`}
-                onClick={() => setSourceFilter(f)}>{label}</button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px', fontSize: '0.6rem', alignItems: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: '6px', background: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}><Building2 size={9} /> Company</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: '6px', background: 'rgba(14,165,233,0.08)', color: 'var(--neon-cyan)' }}><CloudDownload size={9} /> OneDrive</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', borderRadius: '6px', background: 'rgba(245,158,11,0.08)', color: '#fbbf24' }}><PenLine size={9} /> Manual</span>
+            </div>
+            <div className="filter-toggle">
+              {[['', 'All'], ['company', 'Company'], ['onedrive', 'OneDrive'], ['manual', 'Manual']].map(([f, label]) => (
+                <button key={f} className={`filter-toggle__btn ${sourceFilter === f ? 'filter-toggle__btn--active' : ''}`}
+                  onClick={() => setSourceFilter(f)}>{label}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -392,7 +402,7 @@ const KnowledgeManager = () => {
                 padding: '16px', borderRadius: '12px',
                 background: 'rgba(14,165,233,0.015)', border: '1px solid var(--border)',
                 transition: 'all 0.3s',
-                animation: `fadeInUp 0.5s var(--ease-out-expo) ${idx * 0.015}s forwards`,
+                animation: `fadeInUp 0.5s var(--ease-out-expo) ${Math.min(idx * 0.015, 0.2)}s forwards`,
                 opacity: 0,
               }}
               onMouseOver={e => { e.currentTarget.style.borderColor = 'rgba(14,165,233,0.12)'; e.currentTarget.style.background = 'rgba(14,165,233,0.02)'; }}
@@ -418,7 +428,7 @@ const KnowledgeManager = () => {
                       </div>
                     )}
                   </div>
-                  <button onClick={() => handleDeleteEntry(entry.id)} title="Hapus"
+                  <button onClick={() => setConfirmDeleteEntry(entry)} title="Hapus"
                     style={{ flexShrink: 0, padding: '6px', borderRadius: '8px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.2s' }}
                     onMouseOver={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.background = 'rgba(225,29,72,0.08)'; }}
                     onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent'; }}
@@ -433,7 +443,7 @@ const KnowledgeManager = () => {
 
         {sourceFilter && entries.length > 0 && activeTab === 'entries' && (
           <div style={{ marginTop: '16px', textAlign: 'right' }}>
-            <button className="btn-danger" onClick={() => handleDeleteBySource(sourceFilter)}>
+            <button className="btn-danger" onClick={() => setConfirmDeleteSource(sourceFilter)}>
               <Trash2 size={14} /> Hapus "{sourceFilter}" ({entries.length})
             </button>
           </div>
@@ -441,6 +451,43 @@ const KnowledgeManager = () => {
           </>
         )}
       </div>
+      {/* Delete Entry Confirmation Modal */}
+      {confirmDeleteEntry && (
+        <div className="menu-overlay menu-overlay--open" style={{ padding: 0, justifyContent: 'center', alignItems: 'center', background: 'rgba(10,15,30,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setConfirmDeleteEntry(null)}>
+          <div className="glass-panel animate-fade-in-up" style={{ maxWidth: '420px', width: '90%', padding: '32px', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            <Trash2 size={48} color="var(--danger)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Hapus Entry?</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              "{confirmDeleteEntry.title}" akan dihapus permanen dari Knowledge Base.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDeleteEntry(null)}>Batal</button>
+              <button className="btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => handleDeleteEntry(confirmDeleteEntry.id)}>Hapus</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Source Confirmation Modal */}
+      {confirmDeleteSource && (
+        <div className="menu-overlay menu-overlay--open" style={{ padding: 0, justifyContent: 'center', alignItems: 'center', background: 'rgba(10,15,30,0.6)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setConfirmDeleteSource(null)}>
+          <div className="glass-panel animate-fade-in-up" style={{ maxWidth: '420px', width: '90%', padding: '32px', textAlign: 'center' }}
+            onClick={e => e.stopPropagation()}>
+            <AlertCircle size={48} color="var(--danger)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '8px', color: 'var(--text-primary)' }}>Hapus SEMUA dari "{confirmDeleteSource}"?</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '24px', lineHeight: 1.5 }}>
+              {entries.length} entri dari sumber "{confirmDeleteSource}" akan dihapus permanen.
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setConfirmDeleteSource(null)}>Batal</button>
+              <button className="btn-danger" style={{ flex: 1, justifyContent: 'center' }} onClick={() => handleDeleteBySource(confirmDeleteSource)}>Hapus Semua</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

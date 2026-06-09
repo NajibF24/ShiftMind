@@ -156,7 +156,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         {/* Global 3D background */}
         <div className="global-bg">
           <NeuralBackground />

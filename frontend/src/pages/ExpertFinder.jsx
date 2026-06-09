@@ -121,8 +121,9 @@ const ExpertFinder = () => {
             </div>
           ) : experts && experts.experts.length === 0 ? (
             <div className="glass-panel" style={{ textAlign: 'center', padding: '60px' }}>
-              <Users size={40} color="var(--text-muted)" style={{ marginBottom: '16px' }} />
-              <p style={{ color: 'var(--text-muted)' }}>Belum ada expert ditemukan{searchTopic ? ` untuk topik "${searchTopic}"` : ''}.</p>
+              <Search size={40} color="var(--text-muted)" style={{ marginBottom: '16px', opacity: 0.4 }} />
+              <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', marginBottom: '8px' }}>Tidak ada expert ditemukan{searchTopic ? ` untuk topik "${searchTopic}"` : ''}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Coba gunakan kata kunci lain, atau cari berdasarkan area kerja seperti "EAF", "Rolling Mill", "QC Lab".</p>
             </div>
           ) : experts && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -211,16 +212,16 @@ const ExpertFinder = () => {
                         </span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                      <div style={{ textAlign: 'center' }}>
+                    <div className="lb-stats" style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                      <div style={{ textAlign: 'center' }} className="lb-stat">
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '2px' }}>J</div>
                         <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--neon-cyan)' }}>{user.journals}</div>
                       </div>
-                      <div style={{ textAlign: 'center' }}>
+                      <div style={{ textAlign: 'center' }} className="lb-stat">
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '2px' }}>W</div>
                         <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--neon-green)' }}>{user.workflows}</div>
                       </div>
-                      <div style={{ textAlign: 'center' }}>
+                      <div style={{ textAlign: 'center' }} className="lb-stat">
                         <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '2px' }}>K</div>
                         <div style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--neon-purple)' }}>{user.knowledge}</div>
                       </div>
@@ -360,6 +361,12 @@ const ExpertFinder = () => {
           )}
         </div>
       )}
+      <style>{`
+        @media (max-width: 600px) {
+          .lb-stat { display: none !important; }
+          .lb-stats { gap: 8px !important; }
+        }
+      `}</style>
     </div>
   );
 };

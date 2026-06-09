@@ -36,6 +36,7 @@ const Dashboard = () => {
   const [newsData, setNewsData] = useState([]);
   const [marketData, setMarketData] = useState(null);
   const [marketError, setMarketError] = useState(false);
+  const [marketErrors, setMarketErrors] = useState({});
   const [systemHealth, setSystemHealth] = useState({ db: 'checking' });
 
   useEffect(() => {
@@ -64,6 +65,7 @@ const Dashboard = () => {
       .then(r => { 
         setNewsData(r.data.news || []); 
         setMarketData(r.data.market || null); 
+        setMarketErrors(r.data.errors || {});
         setMarketError(false);
       })
       .catch(() => {
@@ -301,21 +303,35 @@ const Dashboard = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border)' }}>
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>USD/IDR Exchange Rate</div>
-                      <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--neon-green)', fontFamily: 'var(--font-display)' }}>
-                        Rp {marketData.usd_idr?.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
+                      {marketData.usd_idr ? (
+                        <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--neon-green)', fontFamily: 'var(--font-display)' }}>
+                          Rp {marketData.usd_idr.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }} title={marketErrors.usd_idr || 'Data unavailable'}>
+                          N/A
+                          <span style={{ fontSize: '0.65rem', marginLeft: '8px', color: 'var(--warning)', verticalAlign: 'middle' }} title={marketErrors.usd_idr}>ⓘ</span>
+                        </div>
+                      )}
                     </div>
-                    <span className="badge badge--green">Live</span>
+                    <span className={`badge ${marketData.usd_idr ? 'badge--green' : 'badge--yellow'}`}>{marketData.usd_idr ? 'Live' : 'Offline'}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '4px' }}>HRC Steel Futures</div>
-                      <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--neon-cyan)', fontFamily: 'var(--font-display)' }}>
-                        $ {marketData.steel_hrc?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> / short ton</span>
-                      </div>
+                      {marketData.steel_hrc ? (
+                        <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--neon-cyan)', fontFamily: 'var(--font-display)' }}>
+                          $ {marketData.steel_hrc.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}> / short ton</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '1.4rem', fontWeight: '700', color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }} title={marketErrors.steel_hrc || 'Data unavailable'}>
+                          N/A
+                          <span style={{ fontSize: '0.65rem', marginLeft: '8px', color: 'var(--warning)', verticalAlign: 'middle' }} title={marketErrors.steel_hrc}>ⓘ</span>
+                        </div>
+                      )}
                     </div>
-                    <span className="badge badge--cyan">NYSE</span>
+                    <span className={`badge ${marketData.steel_hrc ? 'badge--cyan' : 'badge--yellow'}`}>{marketData.steel_hrc ? 'NYSE' : 'Offline'}</span>
                   </div>
                 </>
               ) : marketError ? (

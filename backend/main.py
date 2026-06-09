@@ -15,7 +15,7 @@ import models.notification
 import models.settings
 
 # Import routes
-from routes import auth, knowledge, ask, dashboard, sync, analytics, work_journal, workflow, expert_finder, checklist, approval, notification, export, whatsapp
+from routes import auth, knowledge, ask, dashboard, sync, analytics, work_journal, workflow, expert_finder, checklist, approval, notification, export, whatsapp, knowledge_health
 
 # Create database tables (in production use alembic for migrations)
 import sqlalchemy as sa
@@ -57,6 +57,7 @@ app.include_router(approval.router, prefix="/api/approvals", tags=["approvals"])
 app.include_router(notification.router, prefix="/api/notifications", tags=["notifications"])
 app.include_router(export.router, prefix="/api/export", tags=["export"])
 app.include_router(whatsapp.router, prefix="/api/whatsapp", tags=["whatsapp"])
+app.include_router(knowledge_health.router, prefix="/api/knowledge-health", tags=["knowledge-health"])
 
 @app.get("/api/health")
 def health_check(db: Session = Depends(get_db)):

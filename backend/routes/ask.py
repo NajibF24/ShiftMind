@@ -30,6 +30,7 @@ GYS_CONTEXT = """TENTANG PT GARUDA YAMATO STEEL (GYS):
 class AskRequest(BaseModel):
     query: str
     history: Optional[List[Dict[str, str]]] = []
+    silent: Optional[bool] = False  # If true, don't save to query log
 
 class AskResponse(BaseModel):
     answer: str
@@ -44,8 +45,10 @@ def ask_ai(
     # 1. Generate embedding for the user's query
     query_embedding = generate_embedding(req.query)
     
-    # 2. Perform vector search in pgvector database — increased to 5 results for richer context
-    similar_entries = db.query(KnowledgeEntry).order_by(
+    # 2. Perform vector search in pgvector database — only search active entries (not drafts)
+    similar_entries = db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.status == "active"
+    ).order_by(
         KnowledgeEntry.embedding.l2_distance(query_embedding)
     ).limit(5).all()
     
@@ -125,69 +128,64 @@ def ask_ai(
     answer = get_chat_completion(messages)
     
     # 5. Save the interaction to the database for Dashboard stats & Self-Improving Knowledge
-    try:
-        new_log = QueryLog(
-            user_id=current_user.id,
-            query=req.query,
-            response=answer
-        )
-        db.add(new_log)
-        
-        # 6. Auto-learning: Feed the answer back into the Knowledge Base
-        # We mark it as 'history' and give a lower confidence score (0.8) so official SOPs are prioritized
-        # Check for similar existing history entry via vector search to prevent duplicate spam
-        existing_similar = db.query(KnowledgeEntry).filter(
-            KnowledgeEntry.source == "history"
-        ).order_by(
-            KnowledgeEntry.embedding.l2_distance(query_embedding)
-        ).first()
-        
-        should_learn = True
-        if existing_similar:
-            ratio = SequenceMatcher(None, req.query.lower(), existing_similar.title.lower()).ratio()
-            if ratio > 0.9:  # Increased threshold to 0.9 to avoid variations of same question
-                should_learn = False
-        
-        if should_learn:
-            # Check frequency: only add to knowledge base if query has been asked multiple times
-            from datetime import datetime, timedelta
+    if not req.silent:
+        try:
+            new_log = QueryLog(
+                user_id=current_user.id,
+                query=req.query,
+                response=answer
+            )
+            db.add(new_log)
             
-            # Count similar queries in the last 30 days
-            similar_queries = db.query(QueryLog).filter(
-                QueryLog.created_at >= datetime.utcnow() - timedelta(days=30),
-                QueryLog.user_id == current_user.id
-            ).all()
+            # 6. Auto-learning: Feed the answer back into the Knowledge Base
+            # CRITICAL FIX: New entries are saved as status="draft" and require admin approval
+            # before appearing in search results. This prevents KB pollution.
+            existing_similar = db.query(KnowledgeEntry).filter(
+                KnowledgeEntry.source == "history"
+            ).order_by(
+                KnowledgeEntry.embedding.l2_distance(query_embedding)
+            ).first()
             
-            # Count how many queries are similar (using text similarity)
-            query_count = 0
-            for log in similar_queries:
-                ratio = SequenceMatcher(None, req.query.lower(), log.query.lower()).ratio()
-                if ratio > 0.8:  # Consider similar queries
-                    query_count += 1
+            should_learn = True
+            if existing_similar:
+                ratio = SequenceMatcher(None, req.query.lower(), existing_similar.title.lower()).ratio()
+                if ratio > 0.9:
+                    should_learn = False
             
-            # Only add to knowledge base if the same/similar query has been asked at least 2 times
-            if query_count >= 2:
-                # Generate embedding for the new knowledge
-                history_embedding = generate_embedding(req.query + "\n" + answer)
+            if should_learn:
+                from datetime import datetime, timedelta
                 
-                # Adjust confidence based on frequency
-                confidence_score = min(0.9, 0.7 + (query_count * 0.1))  # Max 0.9 confidence
+                similar_queries = db.query(QueryLog).filter(
+                    QueryLog.created_at >= datetime.utcnow() - timedelta(days=30),
+                    QueryLog.user_id == current_user.id
+                ).all()
                 
-                new_history_entry = KnowledgeEntry(
-                    title=req.query,
-                    content=answer,
-                    category="Auto-Learned",
-                    department="All",
-                    source="history",
-                    confidence_score=confidence_score,
-                    embedding=history_embedding,
-                    author_id=current_user.id
-                )
-                db.add(new_history_entry)
-            
-        db.commit()
-    except Exception as e:
-        print(f"Failed to save query log & history: {e}")
-        db.rollback()
+                query_count = 0
+                for log in similar_queries:
+                    ratio = SequenceMatcher(None, req.query.lower(), log.query.lower()).ratio()
+                    if ratio > 0.8:
+                        query_count += 1
+                
+                if query_count >= 2:
+                    history_embedding = generate_embedding(req.query + "\n" + answer)
+                    confidence_score = min(0.9, 0.7 + (query_count * 0.1))
+                    
+                    new_history_entry = KnowledgeEntry(
+                        title=req.query,
+                        content=answer,
+                        category="Auto-Learned",
+                        department="All",
+                        source="history",
+                        status="draft",  # <-- CRITICAL: draft until admin approves
+                        confidence_score=confidence_score,
+                        embedding=history_embedding,
+                        author_id=current_user.id
+                    )
+                    db.add(new_history_entry)
+                
+            db.commit()
+        except Exception as e:
+            print(f"Failed to save query log & history: {e}")
+            db.rollback()
     
     return AskResponse(answer=answer, sources=sources)

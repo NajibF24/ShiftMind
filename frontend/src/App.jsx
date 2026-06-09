@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
 import FloatingNav from './components/FloatingNav';
 import NeuralBackground from './components/NeuralBackground';
+import ConnectionStatus from './components/ConnectionStatus';
+import ParticleTrail from './components/ParticleTrail';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import CaptureKnowledge from './pages/CaptureKnowledge';
 import AskAI from './pages/AskAI';
 import KnowledgeManager from './pages/KnowledgeManager';
+import KnowledgeHealth from './pages/KnowledgeHealth';
 import Interactive3DHome from './pages/Interactive3DHome';
 import WorkJournal from './pages/WorkJournal';
 import WorkflowRecorder from './pages/WorkflowRecorder';
@@ -40,35 +44,79 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ─── Page Transition Wrapper ──────────────────────────────────────────────────
+const pageVariants = {
+  initial: {
+    clipPath: 'inset(0 0 100% 0)',
+    opacity: 0,
+  },
+  animate: {
+    clipPath: 'inset(0 0 0% 0)',
+    opacity: 1,
+    transition: { duration: 0.6, ease: [0.76, 0, 0.24, 1] },
+  },
+  exit: {
+    clipPath: 'inset(100% 0 0 0)',
+    opacity: 0,
+    transition: { duration: 0.45, ease: [0.76, 0, 0.24, 1] },
+  },
+};
+
+const PageTransition = ({ children }) => (
+  <motion.div
+    variants={pageVariants}
+    initial="initial"
+    animate="animate"
+    exit="exit"
+    style={{ width: '100%', minHeight: '100vh' }}
+  >
+    {children}
+  </motion.div>
+);
+
+// ─── Animated Routes ─────────────────────────────────────────────────────────
+function AnimatedRoutes({ role }) {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<Navigate to="/explore" />} />
+        <Route path="/dashboard" element={<PageTransition><Dashboard /></PageTransition>} />
+        {(role === 'admin' || role === 'user') && (
+          <Route path="/capture" element={<PageTransition><CaptureKnowledge /></PageTransition>} />
+        )}
+        <Route path="/ask" element={<PageTransition><AskAI /></PageTransition>} />
+        <Route path="/journal" element={<PageTransition><WorkJournal /></PageTransition>} />
+        <Route path="/workflows" element={<PageTransition><WorkflowRecorder /></PageTransition>} />
+        <Route path="/experts" element={<PageTransition><ExpertFinder /></PageTransition>} />
+        <Route path="/checklists" element={<PageTransition><Checklists /></PageTransition>} />
+        <Route path="/approvals" element={<PageTransition><Approvals /></PageTransition>} />
+        {role === 'admin' && (
+          <>
+            <Route path="/knowledge-manager" element={<PageTransition><KnowledgeManager /></PageTransition>} />
+            <Route path="/knowledge-health" element={<PageTransition><KnowledgeHealth /></PageTransition>} />
+            <Route path="/settings" element={<PageTransition><Settings /></PageTransition>} />
+          </>
+        )}
+        <Route path="/explore" element={<Interactive3DHome />} />
+        <Route path="*" element={<Navigate to="/explore" />} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 function AppContent({ role, handleLogout }) {
   const location = useLocation();
   const isExplore = location.pathname === '/explore';
 
   return (
     <div className="app-shell">
+      <ConnectionStatus />
       {!isExplore && <FloatingNav role={role} onLogout={handleLogout} />}
+      <ParticleTrail />
       <main style={{ padding: isExplore ? '0' : undefined }}>
-        <Routes>
-          <Route path="/" element={<Navigate to="/explore" />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          {(role === 'admin' || role === 'user') && (
-            <Route path="/capture" element={<CaptureKnowledge />} />
-          )}
-          <Route path="/ask" element={<AskAI />} />
-          <Route path="/journal" element={<WorkJournal />} />
-          <Route path="/workflows" element={<WorkflowRecorder />} />
-          <Route path="/experts" element={<ExpertFinder />} />
-          <Route path="/checklists" element={<Checklists />} />
-          <Route path="/approvals" element={<Approvals />} />
-          {role === 'admin' && (
-            <>
-              <Route path="/knowledge-manager" element={<KnowledgeManager />} />
-              <Route path="/settings" element={<Settings />} />
-            </>
-          )}
-          <Route path="/explore" element={<Interactive3DHome />} />
-          <Route path="*" element={<Navigate to="/explore" />} />
-        </Routes>
+        <AnimatedRoutes role={role} />
       </main>
     </div>
   );

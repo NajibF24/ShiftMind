@@ -8,10 +8,14 @@ const ASK_AI = 'Ask ShiftMind';
 
 const NEWS_KEYWORDS = ['news', 'berita', 'hari ini', 'market', 'steel', 'hrc', 'kurs', 'usd', 'harga', 'latest', 'update', 'signal', 'market intelligence', 'steel signal', 'gys steel signal'];
 
+const MAX_HISTORY_MESSAGES = 100;
+
 const AskAI = () => {
   const [messages, setMessages] = useState(() => {
-    const saved = sessionStorage.getItem('askAI_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('askAI_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +34,13 @@ const AskAI = () => {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    sessionStorage.setItem('askAI_history', JSON.stringify(messages));
+    // Persist to localStorage with max cap
+    const toSave = messages.length > MAX_HISTORY_MESSAGES
+      ? messages.slice(-MAX_HISTORY_MESSAGES)
+      : messages;
+    try {
+      localStorage.setItem('askAI_history', JSON.stringify(toSave));
+    } catch { /* storage full — silently fail */ }
   }, [messages]);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
@@ -101,7 +111,7 @@ const AskAI = () => {
 
   const clearChat = () => {
     setMessages([]);
-    sessionStorage.removeItem('askAI_history');
+    localStorage.removeItem('askAI_history');
     setLoading(false);
   };
 

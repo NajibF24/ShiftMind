@@ -14,6 +14,9 @@ class KnowledgeEntry(Base):
     author_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # nullable for seeded/synced entries
     confidence_score = Column(Float, default=1.0)
     
+    # Status: "active" (visible in search), "draft" (pending review), "archived"
+    status = Column(String, default="active", index=True)
+    
     # Source tracking
     source = Column(String, default="manual", index=True)  # "manual", "company", "onedrive"
     source_file_id = Column(String, nullable=True)           # OneDrive file ID

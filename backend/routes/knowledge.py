@@ -239,3 +239,64 @@ def manual_sync(
         results["onedrive"] = "Skipped (Not configured)"
         
     return {"message": "Manual sync completed", "details": results}
+
+
+# ─── Draft Approval Workflow ─────────────────────────────────────────────────
+
+@router.get("/drafts")
+def list_draft_entries(
+    page: int = 1,
+    per_page: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin]))
+):
+    """List all knowledge entries pending approval (status=draft)."""
+    offset = (page - 1) * per_page
+    total = db.query(KnowledgeEntry).filter(KnowledgeEntry.status == "draft").count()
+    items = db.query(KnowledgeEntry).filter(
+        KnowledgeEntry.status == "draft"
+    ).order_by(KnowledgeEntry.created_at.desc()).offset(offset).limit(per_page).all()
+    return {"items": [
+        {
+            "id": e.id, "title": e.title, "content": e.content,
+            "category": e.category, "department": e.department,
+            "source": e.source, "confidence_score": e.confidence_score,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+        } for e in items
+    ], "total": total}
+
+
+@router.post("/{entry_id}/approve", status_code=200)
+def approve_draft(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin]))
+):
+    """Promote a draft knowledge entry to active (visible in search)."""
+    entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.status != "draft":
+        raise HTTPException(status_code=400, detail="Entry is not a draft")
+    entry.status = "active"
+    db.commit()
+    return {"message": f"Entry '{entry.title}' approved and now active in search."}
+
+
+@router.delete("/{entry_id}/reject", status_code=200)
+def reject_draft(
+    entry_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin]))
+):
+    """Reject and delete a draft knowledge entry."""
+    entry = db.query(KnowledgeEntry).filter(KnowledgeEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.status != "draft":
+        raise HTTPException(status_code=400, detail="Entry is not a draft")
+    title = entry.title
+    db.delete(entry)
+    db.commit()
+    return {"message": f"Draft '{title}' rejected and removed."}
+

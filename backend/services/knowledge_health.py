@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import re
 from typing import Optional
-from db import Session
+from sqlalchemy.orm import Session
 from models.knowledge import KnowledgeEntry
 from models.query_log import QueryLog
 

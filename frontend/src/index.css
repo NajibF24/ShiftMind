@@ -411,6 +411,7 @@ img { max-width: 100%; }
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.6s var(--ease-in-out-smooth);
+  color: var(--text-primary);
 }
 
 .menu-overlay--open {
@@ -1074,3 +1075,31 @@ textarea.form-input {
   0%, 100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.3); }
   50% { box-shadow: 0 0 0 10px rgba(225, 29, 72, 0); }
 }
+
+/* ── Particle Burst (route change) ── */
+@keyframes particleBurst {
+  0% {
+    transform: translate(-50%, -50%) translate(0, 0) scale(1);
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(0);
+    opacity: 0;
+  }
+}
+
+/* ── Connection Status Slide Down ── */
+@keyframes slideDownBar {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Badge color variants ── */
+.badge--green  { background: rgba(16,185,129,0.08);  color: var(--neon-green);  border: 1px solid rgba(16,185,129,0.15); }
+.badge--cyan   { background: rgba(14,165,233,0.08);  color: var(--neon-cyan);   border: 1px solid rgba(14,165,233,0.15); }
+.badge--yellow { background: rgba(245,158,11,0.08);  color: var(--warning);     border: 1px solid rgba(245,158,11,0.15); }
+.badge--red    { background: rgba(225,29,72,0.08);   color: var(--danger);      border: 1px solid rgba(225,29,72,0.15);  }
+

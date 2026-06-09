@@ -5,7 +5,78 @@ import ArtGallery3D, { PAINTING_DATA, GALLERY_RADIUS } from '../components/3d/Ar
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { ArrowLeft, ArrowRight, X, MessageSquare, BarChart3, Database, Upload, BookOpen, ClipboardCheck, FileSignature, Search, Settings, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, MessageSquare, BarChart3, Database, Upload, BookOpen, ClipboardCheck, FileSignature, Search, Settings, FileText, Smartphone } from 'lucide-react';
+
+// ─── Mobile Card Grid Fallback ────────────────────────────────────────────────
+function MobileGalleryFallback({ onNavigate }) {
+  const cards = Object.entries(FRAME_META).slice(0, 9);
+  return (
+    <div style={{
+      minHeight: '100vh', background: '#0d0a08',
+      padding: '80px 20px 40px',
+      overflowY: 'auto',
+    }}>
+      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '6px 14px', borderRadius: '20px',
+          background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.2)',
+          fontSize: '0.68rem', color: '#d4af37', letterSpacing: '2px', marginBottom: '16px',
+        }}>
+          <Smartphone size={11} /> MOBILE VIEW
+        </div>
+        <h1 style={{
+          fontFamily: 'var(--font-display)', fontSize: '2rem',
+          fontWeight: 700, letterSpacing: '-1px', color: '#fff', marginBottom: '8px',
+        }}>
+          <span style={{ color: '#d4af37' }}>Shift</span>Mind
+        </h1>
+        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
+          Tap any module to open it
+        </p>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+        gap: '12px', maxWidth: '500px', margin: '0 auto',
+      }}>
+        {cards.map(([key, meta], idx) => {
+          const Icon = meta.icon;
+          return (
+            <motion.button
+              key={key}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              onClick={() => onNavigate(meta.path)}
+              style={{
+                padding: '20px 16px', borderRadius: '16px', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${meta.btnColor}25`,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
+                transition: 'all 0.3s',
+                textAlign: 'center',
+              }}
+            >
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '12px',
+                background: meta.gradient,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: `0 4px 16px ${meta.btnColor}30`,
+              }}>
+                <Icon size={20} color="#fff" />
+              </div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>
+                {meta.title}
+              </div>
+            </motion.button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const FRAME_META = {
   ask:              { path:'/ask',              icon: MessageSquare, title:'Ask ShiftMind AI',      desc:'Chat with enterprise AI about SOPs, policies, and procedures.',                     gradient:'linear-gradient(135deg,#8b5cf6,#7c3aed)',   btnColor:'#8b5cf6',   btnLabel:'START CHAT SESSION' },
@@ -50,11 +121,11 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
             }}
             onClick={(e)=>e.stopPropagation()}
           >
-            <button onClick={onClose} style={{
+              <button onClick={() => onClose()} style={{
               position:'absolute', top:'20px', right:'20px',
               width:'32px', height:'32px', borderRadius:'50%',
-              background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)',
-              color:'var(--text-muted)', cursor:'pointer', 
+              background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)',
+              color:'#fff', cursor:'pointer', 
               display:'flex', alignItems:'center', justifyContent:'center',
             }}>
               <X size={14} />
@@ -71,9 +142,9 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
               <h2 style={{ fontSize:'1.6rem', fontWeight:'700', fontFamily:'var(--font-display)', color:'#fff', letterSpacing:'-0.3px' }}>
                 {meta.title}
               </h2>
-              <p style={{ fontSize:'0.9rem', color:'var(--text-secondary)', maxWidth:'450px', lineHeight:1.5 }}>
-                {meta.desc}
-              </p>
+               <p style={{ fontSize:'1rem', color:'rgba(255, 255, 255, 0.9)', maxWidth:'450px', lineHeight:1.5, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+               {meta.desc}
+               </p>
 
               {(activePopup === 'dashboard') && marketData && (
                 <div style={{ display:'flex', gap:'12px', width:'100%', marginTop:'4px' }}>
@@ -150,7 +221,15 @@ export default function Interactive3DHome() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [stats, setStats] = useState({ total_entries:0, ai_queries:0 });
   const [marketData, setMarketData] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
   const controlsRef = useRef(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     axios.get('/api/dashboard/stats', { headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } })
@@ -182,6 +261,33 @@ export default function Interactive3DHome() {
 
   const handleNextPainting = () => setCurrentIndex((prev) => (prev + 1) % PAINTING_DATA.length);
   const handlePrevPainting = () => setCurrentIndex((prev) => (prev - 1 + PAINTING_DATA.length) % PAINTING_DATA.length);
+
+  // Debounce for mouse wheel scrolling
+  const wheelTimeout = useRef(null);
+  const handleWheel = (e) => {
+    if (activePopupId || isTransitioning) return;
+    
+    // Ignore small movements (like trackpad resting)
+    if (Math.abs(e.deltaY) < 15) return;
+    
+    if (!wheelTimeout.current) {
+      if (e.deltaY < 0) {
+        handlePrevPainting();
+      } else if (e.deltaY > 0) {
+        handleNextPainting();
+      }
+      
+      // Prevent another scroll event for 800ms to allow animation to complete
+      wheelTimeout.current = setTimeout(() => {
+        wheelTimeout.current = null;
+      }, 800);
+    }
+  };
+
+  // Render mobile fallback instead of Three.js
+  if (isMobile) {
+    return <MobileGalleryFallback onNavigate={(path) => navigate(path)} />;
+  }
 
   return (
     <div style={{ width:'100%', height:'100vh', background:'#0d0a08', position:'relative', overflow:'hidden' }}>
@@ -279,20 +385,39 @@ export default function Interactive3DHome() {
       </div>
 
       {/* Wall indicator dots */}
-      <div style={{ position:'absolute', bottom:'40px', left:'50%', transform:'translateX(-50%)', zIndex:10, display:'flex', gap:'10px' }}>
-        {PAINTING_DATA.map((p,i)=>(
-          <button key={p.id} onClick={() => setCurrentIndex(i)} style={{
-            width: i === currentIndex ? '24px' : '8px', height:'8px', borderRadius:'4px', border:'none', cursor:'pointer',
-            background: i === currentIndex ? 'rgba(212, 175, 55, 0.8)' : 'rgba(255,255,255,0.15)',
-            transition:'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-          }} />
-        ))}
+      <div style={{ position:'absolute', bottom:'40px', left:'50%', transform:'translateX(-50%)', zIndex:10, display:'flex', flexDirection:'column', alignItems:'center', gap:'12px' }}>
+        <AnimatePresence>
+          {!activePopupId && (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
+              style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <div style={{ width: '16px', height: '24px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '10px', position: 'relative' }}>
+                <motion.div 
+                  animate={{ y: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}
+                  style={{ width: '2px', height: '4px', background: 'rgba(255,255,255,0.8)', borderRadius: '2px', position: 'absolute', top: '4px', left: '6px' }}
+                />
+              </div>
+              Scroll or Swipe to navigate
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <div style={{ display:'flex', gap:'10px' }}>
+          {PAINTING_DATA.map((p,i)=>(
+            <button key={p.id} onClick={() => setCurrentIndex(i)} style={{
+              width: i === currentIndex ? '24px' : '8px', height:'8px', borderRadius:'4px', border:'none', cursor:'pointer',
+              background: i === currentIndex ? 'rgba(212, 175, 55, 0.8)' : 'rgba(255,255,255,0.15)',
+              transition:'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            }} />
+          ))}
+        </div>
       </div>
 
       <motion.div
         animate={{ scale:activePopupId ? 0.95 : 1, borderRadius:activePopupId ? '24px' : '0px', opacity:activePopupId ? 0.6 : 1 }}
         transition={{ type:'spring', damping:25, stiffness:200 }}
         style={{ width:'100%', height:'100%', overflow:'hidden' }}
+        onWheel={handleWheel}
       >
         <Canvas camera={{ position:[0, 3, 0], fov:60 }}>
           {/* Brighter lighting for the gallery */}

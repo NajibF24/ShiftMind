@@ -3,16 +3,22 @@ import axios from 'axios';
 import {
   CloudDownload, Building2, FileText, PenLine, RefreshCw,
   Trash2, CheckCircle2, AlertCircle, Loader2, FolderSync, Filter, Search,
+  BrainCircuit, ThumbsUp, ThumbsDown, Clock,
 } from 'lucide-react';
 
 const API_HEADERS = () => ({ Authorization: `Bearer ${localStorage.getItem('token')}` });
 
 const KnowledgeManager = () => {
   const [entries, setEntries] = useState([]);
+  const [drafts, setDrafts] = useState([]);
+  const [draftsTotal, setDraftsTotal] = useState(0);
+  const [activeTab, setActiveTab] = useState('entries');
   const [stats, setStats] = useState(null);
   const [syncStatus, setSyncStatus] = useState(null);
   const [sourceFilter, setSourceFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
+  const [actionLoading, setActionLoading] = useState({});
   const [syncing, setSyncing] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [message, setMessage] = useState(null);
@@ -20,6 +26,38 @@ const KnowledgeManager = () => {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => { fetchAll(); }, [sourceFilter]);
+
+  const fetchDrafts = async () => {
+    setLoadingDrafts(true);
+    try {
+      const r = await axios.get('/api/knowledge/drafts', { headers: API_HEADERS() });
+      setDrafts(r.data.items || []);
+      setDraftsTotal(r.data.total || 0);
+    } catch (err) { console.error('Failed to load drafts', err); }
+    setLoadingDrafts(false);
+  };
+
+  useEffect(() => { if (activeTab === 'drafts') fetchDrafts(); }, [activeTab]);
+
+  const handleApproveDraft = async (id) => {
+    setActionLoading(prev => ({ ...prev, [id]: 'approve' }));
+    try {
+      const res = await axios.post(`/api/knowledge/${id}/approve`, {}, { headers: API_HEADERS() });
+      setMessage({ type: 'success', text: res.data.message });
+      fetchDrafts();
+    } catch (err) { setMessage({ type: 'error', text: err.response?.data?.detail || 'Gagal approve' }); }
+    setActionLoading(prev => ({ ...prev, [id]: null }));
+  };
+
+  const handleRejectDraft = async (id) => {
+    setActionLoading(prev => ({ ...prev, [id]: 'reject' }));
+    try {
+      const res = await axios.delete(`/api/knowledge/${id}/reject`, { headers: API_HEADERS() });
+      setMessage({ type: 'success', text: res.data.message });
+      fetchDrafts();
+    } catch (err) { setMessage({ type: 'error', text: err.response?.data?.detail || 'Gagal reject' }); }
+    setActionLoading(prev => ({ ...prev, [id]: null }));
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -196,7 +234,137 @@ const KnowledgeManager = () => {
       </div>
 
       <div className="glass-panel--strong" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+        {/* Tab bar */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+          <button
+            onClick={() => setActiveTab('entries')}
+            style={{
+              padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              fontSize: '0.82rem', fontWeight: 600, fontFamily: 'var(--font-body)',
+              background: activeTab === 'entries' ? 'rgba(14,165,233,0.08)' : 'transparent',
+              color: activeTab === 'entries' ? 'var(--neon-cyan)' : 'var(--text-muted)',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}
+          >
+            <FileText size={14} /> Knowledge Entries {sourceFilter && `— ${sourceFilter}`}
+          </button>
+          <button
+            onClick={() => setActiveTab('drafts')}
+            style={{
+              padding: '8px 18px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+              fontSize: '0.82rem', fontWeight: 600, fontFamily: 'var(--font-body)',
+              background: activeTab === 'drafts' ? 'rgba(245,158,11,0.08)' : 'transparent',
+              color: activeTab === 'drafts' ? 'var(--warning)' : 'var(--text-muted)',
+              transition: 'all 0.2s',
+              display: 'flex', alignItems: 'center', gap: '6px', position: 'relative',
+            }}
+          >
+            <BrainCircuit size={14} /> Pending Review
+            {draftsTotal > 0 && (
+              <span style={{
+                background: 'var(--warning)', color: '#000', borderRadius: '10px',
+                padding: '1px 7px', fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.5,
+              }}>{draftsTotal}</span>
+            )}
+          </button>
+        </div>
+
+        {activeTab === 'drafts' ? (
+          // ── Drafts Panel ──
+          loadingDrafts ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+              <Loader2 size={24} className="animate-spin" style={{ marginBottom: '8px' }} /> Memuat drafts...
+            </div>
+          ) : drafts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
+              <CheckCircle2 size={32} style={{ marginBottom: '12px', opacity: 0.3 }} />
+              <p>Tidak ada entri yang menunggu review. 🎉</p>
+              <p style={{ fontSize: '0.78rem', marginTop: '8px', opacity: 0.6 }}>Auto-learned entries akan muncul di sini sebelum ditambahkan ke Knowledge Base.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                <Clock size={12} style={{ display: 'inline', marginBottom: '-1px', marginRight: '4px' }} />
+                {drafts.length} entri menunggu review sebelum masuk ke Knowledge Base aktif.
+              </p>
+              {drafts.map((draft, idx) => (
+                <div key={draft.id} style={{
+                  padding: '18px', borderRadius: '12px',
+                  background: 'rgba(245,158,11,0.02)',
+                  border: '1px solid rgba(245,158,11,0.1)',
+                  borderLeft: '4px solid var(--warning)',
+                  animation: `fadeInUp 0.4s var(--ease-out-expo) ${idx * 0.04}s forwards`,
+                  opacity: 0,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', gap: '6px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        <span className="badge" style={{ background: 'rgba(245,158,11,0.08)', color: 'var(--warning)' }}>
+                          <BrainCircuit size={9} /> Auto-Learned
+                        </span>
+                        {draft.category && <span className="badge">{draft.category}</span>}
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                          {draft.confidence_score ? `Confidence: ${Math.round(draft.confidence_score * 100)}%` : ''}
+                        </span>
+                      </div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: '4px', color: 'var(--text-primary)' }}>
+                        {draft.title}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5,
+                        overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {draft.content}
+                      </div>
+                      {draft.created_at && (
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                          {new Date(draft.created_at).toLocaleString('id-ID')}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                      <button
+                        onClick={() => handleApproveDraft(draft.id)}
+                        disabled={!!actionLoading[draft.id]}
+                        style={{
+                          padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                          background: 'rgba(16,185,129,0.08)', color: 'var(--success)',
+                          fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px',
+                          transition: 'all 0.2s',
+                        }}
+                        title="Approve: tambahkan ke Knowledge Base aktif"
+                      >
+                        {actionLoading[draft.id] === 'approve'
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <ThumbsUp size={12} />}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleRejectDraft(draft.id)}
+                        disabled={!!actionLoading[draft.id]}
+                        style={{
+                          padding: '8px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer',
+                          background: 'rgba(225,29,72,0.06)', color: 'var(--danger)',
+                          fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px',
+                          transition: 'all 0.2s',
+                        }}
+                        title="Reject: hapus draft ini"
+                      >
+                        {actionLoading[draft.id] === 'reject'
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <ThumbsDown size={12} />}
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          // ── Entries Panel ──
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
           <h2 style={{ fontSize: '0.9rem', fontWeight: '600', fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={14} color="var(--neon-cyan)" /> Knowledge Entries {sourceFilter && `— ${sourceFilter}`}
           </h2>
@@ -263,12 +431,14 @@ const KnowledgeManager = () => {
           </div>
         )}
 
-        {sourceFilter && entries.length > 0 && (
+        {sourceFilter && entries.length > 0 && activeTab === 'entries' && (
           <div style={{ marginTop: '16px', textAlign: 'right' }}>
             <button className="btn-danger" onClick={() => handleDeleteBySource(sourceFilter)}>
               <Trash2 size={14} /> Hapus "{sourceFilter}" ({entries.length})
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

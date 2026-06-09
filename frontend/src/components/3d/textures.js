@@ -31,7 +31,7 @@ export function geometricTexture() {
     for(let i=0;i<24;i++){const a=i/24*Math.PI*2;ctx.beginPath();ctx.moveTo(cx+Math.cos(a)*30,cy+Math.sin(a)*30);ctx.lineTo(cx+Math.cos(a)*400,cy+Math.sin(a)*400);ctx.stroke()}
     ctx.fillStyle='rgba(200,180,120,0.06)';ctx.fillRect(w*0.15,h*0.15,200,60);ctx.strokeRect(w*0.15,h*0.15,200,60);
     ctx.fillStyle='rgba(60,70,100,0.08)';ctx.fillRect(w*0.7,h*0.65,160,200);
-    for(let i=0;i=50;i++){ctx.fillStyle=`rgba(180,160,100,${0.1+Math.random()*0.25})`;ctx.beginPath();ctx.arc(Math.random()*w,Math.random()*h,1+Math.random()*4,0,Math.PI*2);ctx.fill()}
+    for(let i=0;i<50;i++){ctx.fillStyle=`rgba(180,160,100,${0.1+Math.random()*0.25})`;ctx.beginPath();ctx.arc(Math.random()*w,Math.random()*h,1+Math.random()*4,0,Math.PI*2);ctx.fill()}
   });
 }
 

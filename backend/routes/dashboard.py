@@ -114,10 +114,10 @@ def _get_dashboard_stats(db: Session):
 
 @router.get("/stats")
 def get_dashboard_stats_endpoint(
-    db: Session = Depends(get_db)
-    # We might need auth depending on requirements, but stats are usually global.
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    """Get single-shot dashboard statistics."""
+    """Get single-shot dashboard statistics. Requires authentication."""
     return _get_dashboard_stats(db)
 
 @router.get("/stream")

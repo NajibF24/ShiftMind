@@ -4,10 +4,11 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from pydantic import BaseModel
 import os
+import re
 
 from db import get_db
 from models.user import User, RoleEnum
-from services.auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from services.auth import verify_password, get_password_hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user, require_role
 from services.ldap_service import authenticate as ldap_authenticate, is_configured as ldap_is_configured
 
 router = APIRouter()
@@ -21,18 +22,25 @@ class UserCreate(BaseModel):
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Register a local (non-LDAP) user. In production, restrict this endpoint to admins."""
+def register_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role([RoleEnum.admin]))  # Only admin can create users
+):
+    """Register a local (non-LDAP) user. Admin-only endpoint."""
     db_user = db.query(User).filter(User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
+
+    # Force role to viewer/user — prevent creating admin accounts via API
+    safe_role = user.role if user.role in [RoleEnum.user, RoleEnum.viewer] else RoleEnum.viewer
 
     hashed_password = get_password_hash(user.password)
     new_user = User(
         username=user.username,
         email=user.email,
         hashed_password=hashed_password,
-        role=user.role,
+        role=safe_role,
         is_ldap_user=False,
     )
     db.add(new_user)
@@ -154,25 +162,33 @@ def _issue_token(user: User) -> str:
 
 
 @router.get("/me")
-def get_current_user_info():
-    """Check LDAP config status."""
+def get_current_user_info(
+    current_user: User = Depends(get_current_user)
+):
+    """Check LDAP config status. Requires authentication."""
     return {
         "ldap_enabled": ldap_is_configured(),
-        "ldap_server": os.getenv("LDAP_URL", "not set"),
-        "ldap_admin_users": os.getenv("LDAP_ADMIN_USERS", ""),
+        "user": current_user.username,
+        "role": current_user.role.value,
+        "display_name": current_user.display_name or current_user.username,
     }
 
 
 @router.get("/test-ldap")
-def test_ldap_connection():
-    """Test LDAP service account connection — for debugging only."""
+def test_ldap_connection(
+    current_user: User = Depends(require_role([RoleEnum.admin]))  # Admin-only debug endpoint
+):
+    """Test LDAP service account connection — admin-only debug endpoint."""
     from services.ldap_service import test_connection
     return test_connection()
 
 
 @router.post("/test-ldap-auth")
-def test_ldap_auth(body: dict):
-    """Test a specific user's LDAP auth — for debugging only. Remove in production."""
+def test_ldap_auth(
+    body: dict,
+    current_user: User = Depends(require_role([RoleEnum.admin]))  # Admin-only debug endpoint
+):
+    """Test a specific user's LDAP auth — admin-only debug endpoint."""
     username = body.get("username", "")
     password = body.get("password", "")
     ldap_user = ldap_authenticate(username, password)
@@ -189,8 +205,11 @@ def test_ldap_auth(body: dict):
 
 
 @router.get("/search-ldap/{username}")
-def search_ldap_user(username: str):
-    """Debug: search for a user in LDAP and return what we find."""
+def search_ldap_user(
+    username: str,
+    current_user: User = Depends(require_role([RoleEnum.admin]))  # Admin-only debug endpoint
+):
+    """Debug: search for a user in LDAP — admin-only, with input sanitization."""
     from services.ldap_service import (
         _parse_ldap_url, _make_server, LDAP_URL, LDAP_BIND_DN,
         LDAP_BIND_PASSWORD, LDAP_BASE_DN, LDAP_USERNAME_ATTR
@@ -199,6 +218,11 @@ def search_ldap_user(username: str):
 
     if not LDAP_URL:
         return {"error": "LDAP not configured"}
+
+    # Sanitize username to prevent LDAP injection
+    safe_username = re.sub(r'[^a-zA-Z0-9._@\-]', '', username)
+    if not safe_username:
+        raise HTTPException(status_code=400, detail="Invalid username format")
 
     try:
         host, port, use_ssl = _parse_ldap_url(LDAP_URL)
@@ -213,11 +237,11 @@ def search_ldap_user(username: str):
 
         # Try multiple search strategies
         searches = [
-            ("exact_filter", LDAP_BASE_DN, f"({LDAP_USERNAME_ATTR}={username})"),
-            ("wildcard_sam", LDAP_BASE_DN, f"({LDAP_USERNAME_ATTR}=*{username}*)"),
-            ("by_upn", LDAP_BASE_DN, f"(userPrincipalName={username}*)"),
-            ("by_cn", LDAP_BASE_DN, f"(cn=*{username}*)"),
-            ("by_mail", LDAP_BASE_DN, f"(mail={username}*)"),
+            ("exact_filter", LDAP_BASE_DN, f"({LDAP_USERNAME_ATTR}={safe_username})"),
+            ("wildcard_sam", LDAP_BASE_DN, f"({LDAP_USERNAME_ATTR}=*{safe_username}*)"),
+            ("by_upn", LDAP_BASE_DN, f"(userPrincipalName={safe_username}*)"),
+            ("by_cn", LDAP_BASE_DN, f"(cn=*{safe_username}*)"),
+            ("by_mail", LDAP_BASE_DN, f"(mail={safe_username}*)"),
         ]
 
         for label, base, fltr in searches:

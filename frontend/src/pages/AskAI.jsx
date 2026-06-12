@@ -6,7 +6,27 @@ import remarkGfm from 'remark-gfm';
 
 const ASK_AI = 'Ask ShiftMind';
 
-const NEWS_KEYWORDS = ['news', 'berita', 'hari ini', 'market', 'steel', 'hrc', 'kurs', 'usd', 'harga', 'latest', 'update', 'signal', 'market intelligence', 'steel signal', 'gys steel signal'];
+// ─── Smarter news detection ─────────────────────────────────────────────────
+// EXPLICIT news keywords — user is clearly asking for market/news data
+const EXPLICIT_NEWS_PHRASES = [
+  'berita steel', 'berita baja', 'steel signal', 'gys steel signal',
+  'market intelligence', 'harga hrc', 'harga baja hari ini',
+  'kurs hari ini', 'kurs usd', 'harga steel',
+  'news hari ini', 'berita hari ini', 'market hari ini',
+  'update market', 'update harga',
+];
+
+// ANTI keywords — if these appear, NEVER treat as news query (send to AI instead)
+const ANTI_NEWS_KEYWORDS = [
+  'visi', 'misi', 'profil', 'sejarah', 'tentang', 'apa itu',
+  'sop', 'prosedur', 'kebijakan', 'policy', 'sertifikat', 'iso',
+  'produk', 'h-beam', 'iwf', 'channel', 'equal angle', 'tkdn',
+  'investor', 'pemegang saham', 'core value', 'nilai',
+  'alamat', 'lokasi', 'kontak', 'jam operasional',
+  'karyawan', 'cuti', 'lembur', 'absen', 'gaji',
+  'bagaimana', 'jelaskan', 'apa saja', 'siapa',
+  'checklist', 'approval', 'workflow', 'journal',
+];
 
 const MAX_HISTORY_MESSAGES = 100;
 
@@ -55,9 +75,16 @@ const AskAI = () => {
     }
   }, [loading]);
 
-  const isNewsQuery = (q) => {
+  /**
+   * Smart news detection — only triggers for EXPLICIT market/news requests.
+   * Returns false if any anti-keyword is present (meaning user is asking about company/SOP info).
+   */
+  const isExplicitNewsQuery = (q) => {
     const lower = q.toLowerCase();
-    return NEWS_KEYWORDS.some(k => lower.includes(k));
+    // If ANY anti-keyword is present, this is NOT a news query
+    if (ANTI_NEWS_KEYWORDS.some(k => lower.includes(k))) return false;
+    // Must match an explicit news phrase
+    return EXPLICIT_NEWS_PHRASES.some(k => lower.includes(k));
   };
 
   const formatNewsResponse = () => {
@@ -84,7 +111,8 @@ const AskAI = () => {
     const q = input.trim();
     if (!q || loading) return;
 
-    if (isNewsQuery(q) && (newsData.length || marketData)) {
+    // Only show cached news for VERY explicit news requests
+    if (isExplicitNewsQuery(q) && (newsData.length || marketData)) {
       const newsResponse = formatNewsResponse();
       if (newsResponse) {
         setMessages(prev => [...prev, { role: 'user', content: q }]);
@@ -94,19 +122,16 @@ const AskAI = () => {
       }
     }
 
+    // All other queries → send DIRECTLY to AI backend with conversation history
     const userMsg = { role: 'user', content: q };
-    setMessages(prev => [...prev, userMsg]);
+    const updatedMessages = [...messages, userMsg];
+    setMessages(updatedMessages);
     setInput('');
     setLoading(true);
     try {
-      let enhancedQuery = q;
-      if (isNewsQuery(q)) {
-        const ctx = [];
-        if (marketData) ctx.push(`USD/IDR: ${marketData.usd_idr}, HRC Steel: ${marketData.steel_hrc}`);
-        if (newsData.length) ctx.push(`Berita terbaru: ${newsData.slice(0, 3).map(n => n.title).join('; ')}`);
-        if (ctx.length) enhancedQuery = `${q}\n\n[KONTEKS MARKET: ${ctx.join(' | ')}]`;
-      }
-      const res = await axios.post('/api/ask', { query: enhancedQuery }, {
+      // Send last 10 messages as history so AI can maintain conversation context
+      const historyForApi = updatedMessages.slice(-10).map(m => ({ role: m.role, content: m.content }));
+      const res = await axios.post('/api/ask', { query: q, history: historyForApi }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
         timeout: 120000,
       });

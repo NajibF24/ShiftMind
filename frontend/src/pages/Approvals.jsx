@@ -3,7 +3,7 @@ import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileSignature, Plus, CheckCircle, XCircle, Clock, FileText,
-  Upload, Loader2, RefreshCw, ShoppingCart, Settings
+  Upload, Loader2, RefreshCw, ShoppingCart, Settings, AlertTriangle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -74,7 +74,7 @@ export default function Approvals() {
     const fd = new FormData(); fd.append('file', file);
     try {
       const res = await axios.post('/api/approvals/review-contract', fd,
-        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'multipart/form-data' } });
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
       setReviewResult(res.data.ai_review);
     } catch (e) {
       setReviewResult('Review failed: ' + (e.response?.data?.detail || e.message));

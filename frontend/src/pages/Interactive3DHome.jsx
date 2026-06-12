@@ -1,6 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Environment, CameraControls } from '@react-three/drei';
+import { CameraControls } from '@react-three/drei';
+import { useThree } from '@react-three/fiber';
 import ArtGallery3D from '../components/3d/ArtGallery3D';
 import { PAINTING_DATA, GALLERY_RADIUS } from '../components/3d/galleryData';
 import { useNavigate } from 'react-router-dom';
@@ -13,7 +14,8 @@ function MobileGalleryFallback({ onNavigate }) {
   const cards = Object.entries(FRAME_META).slice(0, 9);
   return (
     <div style={{
-      minHeight: '100vh', background: '#0d0a08',
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f5f7fb 0%, #e8ecf4 50%, #f0f4ff 100%)',
       padding: '80px 20px 40px',
       overflowY: 'auto',
     }}>
@@ -21,18 +23,18 @@ function MobileGalleryFallback({ onNavigate }) {
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: '8px',
           padding: '6px 14px', borderRadius: '20px',
-          background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.2)',
-          fontSize: '0.68rem', color: '#d4af37', letterSpacing: '2px', marginBottom: '16px',
+          background: 'rgba(14,165,233,0.08)', border: '1px solid rgba(14,165,233,0.2)',
+          fontSize: '0.68rem', color: '#0ea5e9', letterSpacing: '2px', marginBottom: '16px',
         }}>
           <Smartphone size={11} /> MOBILE VIEW
         </div>
         <h1 style={{
           fontFamily: 'var(--font-display)', fontSize: '2rem',
-          fontWeight: 700, letterSpacing: '-1px', color: '#fff', marginBottom: '8px',
+          fontWeight: 700, letterSpacing: '-1px', color: '#0f172a', marginBottom: '8px',
         }}>
-          <span style={{ color: '#d4af37' }}>Shift</span>Mind
+          <span style={{ color: '#0ea5e9' }}>Shift</span>Mind
         </h1>
-        <p style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.4)' }}>
+        <p style={{ fontSize: '0.82rem', color: '#64748b' }}>
           Tap any module to open it
         </p>
       </div>
@@ -53,11 +55,12 @@ function MobileGalleryFallback({ onNavigate }) {
               onClick={() => onNavigate(meta.path)}
               style={{
                 padding: '20px 16px', borderRadius: '16px', cursor: 'pointer',
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${meta.btnColor}25`,
+                background: 'rgba(255,255,255,0.85)',
+                border: `1px solid ${meta.btnColor}30`,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px',
                 transition: 'all 0.3s',
                 textAlign: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
               }}
             >
               <div style={{
@@ -68,7 +71,7 @@ function MobileGalleryFallback({ onNavigate }) {
               }}>
                 <Icon size={20} color="#fff" />
               </div>
-              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#fff', lineHeight: 1.3 }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#0f172a', lineHeight: 1.3 }}>
                 {meta.title}
               </div>
             </motion.button>
@@ -103,9 +106,9 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
           initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} transition={{ duration:0.3 }}
           style={{
             position:'absolute',top:0,left:0,width:'100%',height:'100%',
-            background:'rgba(10,8,6,0.80)',zIndex:100,
+            background:'rgba(238,241,248,0.85)',zIndex:100,
             display:'flex',justifyContent:'center',alignItems:'center',
-            backdropFilter:'blur(28px) saturate(180%)',
+            backdropFilter:'blur(28px) saturate(200%)',
           }}
           onClick={onClose}
         >
@@ -115,20 +118,24 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
             exit={{ scale:0.9, y:20, opacity:0 }}
             transition={{ type:'spring', damping:22, stiffness:280 }}
             style={{
-              background:'rgba(15, 10, 8, 0.75)', width:'680px', borderRadius:'28px',
-              border:'1px solid rgba(255,255,255,0.08)', padding:'48px',
-              boxShadow:'0 40px 100px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.05)',
+              background:'rgba(255,255,255,0.92)', width:'680px', borderRadius:'28px',
+              border:'1px solid rgba(14,165,233,0.18)', padding:'48px',
+              boxShadow:'0 40px 100px rgba(14,165,233,0.12), 0 8px 32px rgba(0,0,0,0.08)',
               position:'relative', textAlign:'center', backdropFilter:'blur(40px)',
             }}
             onClick={(e)=>e.stopPropagation()}
           >
-              <button onClick={() => onClose()} style={{
+            <button onClick={() => onClose()} style={{
               position:'absolute', top:'20px', right:'20px',
               width:'32px', height:'32px', borderRadius:'50%',
-              background:'rgba(255,255,255,0.1)', border:'1px solid rgba(255,255,255,0.2)',
-              color:'#fff', cursor:'pointer', 
+              background:'rgba(14,165,233,0.08)', border:'1px solid rgba(14,165,233,0.2)',
+              color:'#475569', cursor:'pointer', 
               display:'flex', alignItems:'center', justifyContent:'center',
-            }}>
+              transition:'all 0.2s',
+            }}
+            onMouseOver={e=>{e.currentTarget.style.background='rgba(14,165,233,0.15)'}}
+            onMouseOut={e=>{e.currentTarget.style.background='rgba(14,165,233,0.08)'}}
+            >
               <X size={14} />
             </button>
 
@@ -136,28 +143,28 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
               <div style={{
                 width:'56px', height:'56px', borderRadius:'14px',
                 background:meta.gradient, display:'flex', alignItems:'center', justifyContent:'center',
-                boxShadow:`0 0 24px ${meta.btnColor}30`,
+                boxShadow:`0 8px 24px ${meta.btnColor}35`,
               }}>
                 <Icon size={24} color="#fff" />
               </div>
-              <h2 style={{ fontSize:'1.6rem', fontWeight:'700', fontFamily:'var(--font-display)', color:'#fff', letterSpacing:'-0.3px' }}>
+              <h2 style={{ fontSize:'1.6rem', fontWeight:'700', fontFamily:'var(--font-display)', color:'#0f172a', letterSpacing:'-0.3px' }}>
                 {meta.title}
               </h2>
-               <p style={{ fontSize:'1rem', color:'rgba(255, 255, 255, 0.9)', maxWidth:'450px', lineHeight:1.5, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
-               {meta.desc}
-               </p>
+              <p style={{ fontSize:'1rem', color:'#475569', maxWidth:'450px', lineHeight:1.6 }}>
+                {meta.desc}
+              </p>
 
               {(activePopup === 'dashboard') && marketData && (
                 <div style={{ display:'flex', gap:'12px', width:'100%', marginTop:'4px' }}>
-                  <div style={{ flex:1, padding:'16px', background:'rgba(0,0,0,0.3)', borderRadius:'12px', border:'1px solid rgba(14,165,233,0.06)' }}>
-                    <div style={{ fontSize:'0.65rem', color:'var(--text-muted)', marginBottom:'4px', letterSpacing:'1px', textTransform:'uppercase' }}>USD/IDR</div>
-                    <div style={{ fontSize:'1.4rem', fontWeight:'700', color:'var(--neon-green)', fontFamily:'var(--font-display)' }}>
+                  <div style={{ flex:1, padding:'16px', background:'rgba(14,165,233,0.05)', borderRadius:'12px', border:'1px solid rgba(14,165,233,0.12)' }}>
+                    <div style={{ fontSize:'0.65rem', color:'#64748b', marginBottom:'4px', letterSpacing:'1px', textTransform:'uppercase' }}>USD/IDR</div>
+                    <div style={{ fontSize:'1.4rem', fontWeight:'700', color:'#10b981', fontFamily:'var(--font-display)' }}>
                       Rp {marketData.usd_idr?.toLocaleString('id-ID') || '...'}
                     </div>
                   </div>
-                  <div style={{ flex:1, padding:'16px', background:'rgba(0,0,0,0.3)', borderRadius:'12px', border:'1px solid rgba(14,165,233,0.06)' }}>
-                    <div style={{ fontSize:'0.65rem', color:'var(--text-muted)', marginBottom:'4px', letterSpacing:'1px', textTransform:'uppercase' }}>HRC Steel</div>
-                    <div style={{ fontSize:'1.4rem', fontWeight:'700', color:'var(--neon-cyan)', fontFamily:'var(--font-display)' }}>
+                  <div style={{ flex:1, padding:'16px', background:'rgba(14,165,233,0.05)', borderRadius:'12px', border:'1px solid rgba(14,165,233,0.12)' }}>
+                    <div style={{ fontSize:'0.65rem', color:'#64748b', marginBottom:'4px', letterSpacing:'1px', textTransform:'uppercase' }}>HRC Steel</div>
+                    <div style={{ fontSize:'1.4rem', fontWeight:'700', color:'#0ea5e9', fontFamily:'var(--font-display)' }}>
                       $ {marketData.steel_hrc?.toLocaleString() || '...'}
                     </div>
                   </div>
@@ -166,13 +173,13 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
 
               {(activePopup === 'knowledge' || activePopup === 'knowledge-manager') && (
                 <div style={{ display:'flex', gap:'12px', width:'100%', marginTop:'4px' }}>
-                  <div style={{ flex:1, padding:'16px', background:'rgba(0,0,0,0.3)', borderRadius:'12px', border:'1px solid rgba(139,92,246,0.06)' }}>
-                    <div style={{ fontSize:'2rem', fontWeight:'700', color:'#c084fc', fontFamily:'var(--font-display)' }}>{stats.total_entries}</div>
-                    <div style={{ fontSize:'0.65rem', color:'var(--text-muted)', letterSpacing:'1px', textTransform:'uppercase' }}>Documents</div>
+                  <div style={{ flex:1, padding:'16px', background:'rgba(59,130,246,0.05)', borderRadius:'12px', border:'1px solid rgba(59,130,246,0.12)' }}>
+                    <div style={{ fontSize:'2rem', fontWeight:'700', color:'#3b82f6', fontFamily:'var(--font-display)' }}>{stats.total_entries}</div>
+                    <div style={{ fontSize:'0.65rem', color:'#64748b', letterSpacing:'1px', textTransform:'uppercase' }}>Documents</div>
                   </div>
-                  <div style={{ flex:1, padding:'16px', background:'rgba(0,0,0,0.3)', borderRadius:'12px', border:'1px solid rgba(139,92,246,0.06)' }}>
-                    <div style={{ fontSize:'2rem', fontWeight:'700', color:'#c084fc', fontFamily:'var(--font-display)' }}>{stats.ai_queries}</div>
-                    <div style={{ fontSize:'0.65rem', color:'var(--text-muted)', letterSpacing:'1px', textTransform:'uppercase' }}>AI Queries</div>
+                  <div style={{ flex:1, padding:'16px', background:'rgba(59,130,246,0.05)', borderRadius:'12px', border:'1px solid rgba(59,130,246,0.12)' }}>
+                    <div style={{ fontSize:'2rem', fontWeight:'700', color:'#3b82f6', fontFamily:'var(--font-display)' }}>{stats.ai_queries}</div>
+                    <div style={{ fontSize:'0.65rem', color:'#64748b', letterSpacing:'1px', textTransform:'uppercase' }}>AI Queries</div>
                   </div>
                 </div>
               )}
@@ -197,21 +204,29 @@ function PopupOverlay({ activePopup, onClose, onNavigate, stats, marketData }) {
 }
 
 function SceneController({ currentIndex, activePopupId, controlsRef }) {
+  const { invalidate } = useThree();
+
   useEffect(() => {
     if (!controlsRef.current) return;
     const targetId = activePopupId || PAINTING_DATA[currentIndex]?.id;
     const idx = PAINTING_DATA.findIndex(p => p.id === targetId);
     if (idx !== -1) {
       const angle = (idx / PAINTING_DATA.length) * Math.PI * 2;
-      
-      // Look from the center towards the painting
       controlsRef.current.setLookAt(
         0, 2.5, 0,
         Math.sin(angle) * GALLERY_RADIUS, 2.5, Math.cos(angle) * GALLERY_RADIUS,
         true
       );
+      // Invalidate each frame during camera transition (demand mode)
+      const duration = 1200;
+      const start = performance.now();
+      const tick = () => {
+        invalidate();
+        if (performance.now() - start < duration) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     }
-  }, [currentIndex, activePopupId, controlsRef]);
+  }, [currentIndex, activePopupId, controlsRef, invalidate]);
   return null;
 }
 
@@ -291,7 +306,7 @@ export default function Interactive3DHome() {
   }
 
   return (
-    <div style={{ width:'100%', height:'100vh', background:'#0d0a08', position:'relative', overflow:'hidden' }}>
+    <div style={{ width:'100%', height:'100vh', background:'linear-gradient(135deg,#f5f7fb 0%,#e8ecf4 50%,#f0f4ff 100%)', position:'relative', overflow:'hidden' }}>
       <AnimatePresence>
         {isTransitioning && (
           <motion.div
@@ -319,12 +334,13 @@ export default function Interactive3DHome() {
               style={{
                 position:'absolute', left:'24px', top:'50%', transform:'translateY(-50%)', zIndex:10,
                 width:'48px', height:'48px', borderRadius:'50%',
-                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
+                background:'rgba(255,255,255,0.85)', border:'1px solid rgba(14,165,233,0.2)',
                 cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center',
-                color:'rgba(255,255,255,0.7)', transition:'all 0.3s', backdropFilter:'blur(10px)',
+                color:'#475569', transition:'all 0.3s', backdropFilter:'blur(10px)',
+                boxShadow:'0 2px 12px rgba(14,165,233,0.1)',
               }}
-              onMouseOver={e=>{e.currentTarget.style.background='rgba(255,255,255,0.12)';e.currentTarget.style.color='#fff'}}
-              onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.7)'}}
+              onMouseOver={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#0ea5e9';e.currentTarget.style.borderColor='rgba(14,165,233,0.4)'}}
+              onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.85)';e.currentTarget.style.color='#475569';e.currentTarget.style.borderColor='rgba(14,165,233,0.2)'}}
             >
               <ArrowLeft size={20} />
             </motion.button>
@@ -334,12 +350,13 @@ export default function Interactive3DHome() {
               style={{
                 position:'absolute', right:'24px', top:'50%', transform:'translateY(-50%)', zIndex:10,
                 width:'48px', height:'48px', borderRadius:'50%',
-                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
+                background:'rgba(255,255,255,0.85)', border:'1px solid rgba(14,165,233,0.2)',
                 cursor:'pointer', display:'flex', justifyContent:'center', alignItems:'center',
-                color:'rgba(255,255,255,0.7)', transition:'all 0.3s', backdropFilter:'blur(10px)',
+                color:'#475569', transition:'all 0.3s', backdropFilter:'blur(10px)',
+                boxShadow:'0 2px 12px rgba(14,165,233,0.1)',
               }}
-              onMouseOver={e=>{e.currentTarget.style.background='rgba(255,255,255,0.12)';e.currentTarget.style.color='#fff'}}
-              onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.7)'}}
+              onMouseOver={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#0ea5e9';e.currentTarget.style.borderColor='rgba(14,165,233,0.4)'}}
+              onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.85)';e.currentTarget.style.color='#475569';e.currentTarget.style.borderColor='rgba(14,165,233,0.2)'}}
             >
               <ArrowRight size={20} />
             </motion.button>
@@ -351,11 +368,11 @@ export default function Interactive3DHome() {
       <div style={{ position:'absolute', top:'24px', left:'32px', zIndex:10, display:'flex', gap:'12px', alignItems:'center' }}>
         <div style={{
           padding:'10px 20px', borderRadius:'12px',
-          background:'rgba(20, 15, 12, 0.4)', border:'1px solid rgba(255,255,255,0.08)',
-          backdropFilter:'blur(12px)',
+          background:'rgba(255,255,255,0.88)', border:'1px solid rgba(14,165,233,0.18)',
+          backdropFilter:'blur(12px)', boxShadow:'0 2px 12px rgba(14,165,233,0.08)',
         }}>
-          <span style={{ fontSize:'0.9rem', fontWeight:'600', fontFamily:'var(--font-display)', color:'#fff' }}>
-            <span style={{ color:'#d4af37' }}>Shift</span>Mind Museum
+          <span style={{ fontSize:'0.9rem', fontWeight:'600', fontFamily:'var(--font-display)', color:'#0f172a' }}>
+            <span style={{ color:'#0ea5e9' }}>Shift</span>Mind Gallery
           </span>
         </div>
         <AnimatePresence mode="wait">
@@ -364,22 +381,23 @@ export default function Interactive3DHome() {
             initial={{ opacity:0, y:-10 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0, y:10 }}
             style={{
               padding:'8px 16px', borderRadius:'10px',
-              background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)',
-              fontSize:'0.75rem', color:'var(--text-secondary)', backdropFilter:'blur(10px)',
-              display:'flex', alignItems:'center', gap:'6px'
+              background:'rgba(255,255,255,0.75)', border:'1px solid rgba(14,165,233,0.15)',
+              fontSize:'0.75rem', color:'#475569', backdropFilter:'blur(10px)',
+              display:'flex', alignItems:'center', gap:'6px',
+              boxShadow:'0 1px 6px rgba(0,0,0,0.05)',
             }}
           >
-            <span style={{ color: '#fff', fontWeight: 500 }}>{PAINTING_DATA[currentIndex]?.featureTitle}</span>
+            <span style={{ color: '#0f172a', fontWeight: 500 }}>{PAINTING_DATA[currentIndex]?.featureTitle}</span>
           </motion.div>
         </AnimatePresence>
         <button onClick={() => handleNavigate('/dashboard')} style={{
           padding:'10px 16px', borderRadius:'12px', cursor:'pointer',
-          background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)',
-          color:'rgba(255,255,255,0.6)', fontSize:'0.75rem', fontFamily:'var(--font-body)', fontWeight: 500,
+          background:'rgba(255,255,255,0.75)', border:'1px solid rgba(0,0,0,0.08)',
+          color:'#64748b', fontSize:'0.75rem', fontFamily:'var(--font-body)', fontWeight: 500,
           transition:'all 0.3s', display:'flex', alignItems:'center', gap:'6px', backdropFilter:'blur(10px)',
         }}
-        onMouseOver={e=>{e.currentTarget.style.background='rgba(225,29,72,0.15)';e.currentTarget.style.borderColor='rgba(225,29,72,0.3)';e.currentTarget.style.color='var(--danger)'}}
-        onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.02)';e.currentTarget.style.borderColor='rgba(255,255,255,0.06)';e.currentTarget.style.color='rgba(255,255,255,0.6)'}}
+        onMouseOver={e=>{e.currentTarget.style.background='rgba(225,29,72,0.08)';e.currentTarget.style.borderColor='rgba(225,29,72,0.25)';e.currentTarget.style.color='var(--danger)'}}
+        onMouseOut={e=>{e.currentTarget.style.background='rgba(255,255,255,0.75)';e.currentTarget.style.borderColor='rgba(0,0,0,0.08)';e.currentTarget.style.color='#64748b'}}
         >
           <X size={14} /> Exit Gallery
         </button>
@@ -391,12 +409,15 @@ export default function Interactive3DHome() {
           {!activePopupId && (
             <motion.div 
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-              style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', letterSpacing: '2px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px' }}
+              style={{ fontSize: '0.7rem', color: '#64748b', letterSpacing: '2px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px',
+                padding:'6px 14px', borderRadius:'20px', background:'rgba(255,255,255,0.8)', border:'1px solid rgba(14,165,233,0.12)',
+                backdropFilter:'blur(8px)', boxShadow:'0 1px 6px rgba(0,0,0,0.06)'
+              }}
             >
-              <div style={{ width: '16px', height: '24px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: '10px', position: 'relative' }}>
+              <div style={{ width: '14px', height: '22px', border: '1.5px solid #94a3b8', borderRadius: '8px', position: 'relative' }}>
                 <motion.div 
-                  animate={{ y: [0, 6, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}
-                  style={{ width: '2px', height: '4px', background: 'rgba(255,255,255,0.8)', borderRadius: '2px', position: 'absolute', top: '4px', left: '6px' }}
+                  animate={{ y: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.5 }}
+                  style={{ width: '2px', height: '4px', background: '#0ea5e9', borderRadius: '2px', position: 'absolute', top: '3px', left: '5px' }}
                 />
               </div>
               Scroll or Swipe to navigate
@@ -407,8 +428,9 @@ export default function Interactive3DHome() {
           {PAINTING_DATA.map((p,i)=>(
             <button key={p.id} onClick={() => setCurrentIndex(i)} style={{
               width: i === currentIndex ? '24px' : '8px', height:'8px', borderRadius:'4px', border:'none', cursor:'pointer',
-              background: i === currentIndex ? 'rgba(212, 175, 55, 0.8)' : 'rgba(255,255,255,0.15)',
+              background: i === currentIndex ? '#0ea5e9' : 'rgba(14,165,233,0.25)',
               transition:'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: i === currentIndex ? '0 0 8px rgba(14,165,233,0.4)' : 'none',
             }} />
           ))}
         </div>
@@ -420,18 +442,21 @@ export default function Interactive3DHome() {
         style={{ width:'100%', height:'100%', overflow:'hidden' }}
         onWheel={handleWheel}
       >
-        <Canvas camera={{ position:[0, 3, 0], fov:60 }}>
-          {/* Brighter lighting for the gallery */}
-          <color attach="background" args={['#0d0a08']} />
-          <ambientLight intensity={0.9} color="#f5efe8" />
-          <spotLight position={[0, 18, 0]} intensity={2.5} angle={0.8} penumbra={0.8} color="#f5ede0" castShadow />
-          <spotLight position={[-12, 10, -10]} intensity={1.5} angle={0.8} penumbra={0.9} color="#f0e6d0" />
-          <spotLight position={[12, 10, 10]} intensity={1.5} angle={0.8} penumbra={0.9} color="#f0e6d0" />
-          <pointLight position={[-6, 6, -12]} intensity={0.8} color="#e8d8c0" />
-          <pointLight position={[6, 6, 12]} intensity={0.8} color="#e8d8c0" />
-          <pointLight position={[12, 6, -6]} intensity={0.8} color="#e8d8c0" />
-          <pointLight position={[-12, 6, 6]} intensity={0.8} color="#e8d8c0" />
-          <pointLight position={[0, 10, 0]} intensity={1.0} color="#f0e0c0" />
+        <Canvas
+          camera={{ position:[0, 3, 0], fov:60 }}
+          frameloop="demand"
+          dpr={[1, 1.5]}
+          gl={{ antialias: true, powerPreference: 'high-performance' }}
+          performance={{ min: 0.5 }}
+        >
+          {/* Minimal lighting — 1 ambient + 1 directional + 2 fill points */}
+          <color attach="background" args={['#eef1f8']} />
+          <ambientLight intensity={1.6} color="#eaf2ff" />
+          <directionalLight
+            position={[0, 15, 5]} intensity={2.2} color="#ffffff"
+          />
+          <pointLight position={[-10, 8, -10]} intensity={0.8} color="#c8deff" />
+          <pointLight position={[10, 8, 10]} intensity={0.8} color="#c8deff" />
 
           <Suspense fallback={null}>
             <ArtGallery3D onSelect={handlePaintingClick} />
@@ -445,7 +470,6 @@ export default function Interactive3DHome() {
               touches={{ one: activePopupId ? 0 : 128, two: 0, three: 0 }}
               mouseButtons={{ left: activePopupId ? 0 : 1, middle: 0, right: 0, wheel: 0 }}
             />
-            <Environment preset="sunset" />
           </Suspense>
         </Canvas>
       </motion.div>

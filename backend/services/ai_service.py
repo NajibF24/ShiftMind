@@ -59,7 +59,8 @@ def get_chat_completion(messages: list[dict], model: str = None) -> str:
             print(f"Attempting to generate response using 9Router model: {attempt_model}")
             response = client.chat.completions.create(
                 model=attempt_model,
-                messages=messages
+                messages=messages,
+                temperature=0.3,  # Low temperature for focused, accurate answers
             )
             print(f"Success with model: {attempt_model}")
             return response.choices[0].message.content

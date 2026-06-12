@@ -25,6 +25,12 @@ with engine.connect() as conn:
 
 Base.metadata.create_all(bind=engine)
 
+# ─── Seed demo/presentation data ─────────────────────────────────────────────
+from seed_company_knowledge import seed_company_knowledge
+from seed_demo_data import seed_demo_data
+
+_seed_db = None  # will be set in startup
+
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI(title="ShiftMind API", version="2.0")
@@ -112,6 +118,19 @@ async def startup_event():
     """Start the scheduler and connect WhatsApp on app startup."""
     scheduler.start()
     logger.info(f"APScheduler started — Daily sync scheduled at {sync_hour:02d}:00")
+
+    # ── Seed company knowledge (idempotent) ───────────────────────────────────
+    try:
+        from db import SessionLocal
+        _db = SessionLocal()
+        try:
+            seed_company_knowledge(_db)
+            seed_demo_data(_db)   # Seed demo users, checklists, journals, workflows, approvals
+        finally:
+            _db.close()
+    except Exception as e:
+        logger.warning(f"Demo data seeding skipped: {e}")
+
     # Attempt WhatsApp connection (non-blocking)
     try:
         from services.whatsapp_service import connect_whatsapp, load_config_from_db

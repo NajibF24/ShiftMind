@@ -5,7 +5,7 @@ import remarkGfm from 'remark-gfm';
 import {
   GitBranch, Plus, Sparkles, FileText, Shield, Zap, Clock,
   ChevronRight, Loader2, Trash2, CheckCircle, Award, Eye,
-  ArrowUp, ArrowDown, CheckSquare
+  ArrowUp, ArrowDown, CheckSquare, AlertTriangle
 } from 'lucide-react';
 
 const API = '/api/workflow';
